@@ -16,7 +16,7 @@ class DiffusionBlock(nn.Module):
         self.alpha = nn.Parameter(torch.tensor(alpha), requires_grad=grads.get('alpha'))
         if self.alpha > 0:
             tau = 1.0 / (4.0 * (1.0 - self.alpha))
-        self.tau = nn.Parameter(torch.tensor(tau), requires_grad=grads.get('tau'))
+        self.tau = nn.Parameter(tau, requires_grad=grads.get('tau'))
 
 
     def forward(self, u, a,b,c):

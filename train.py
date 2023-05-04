@@ -46,7 +46,7 @@ parser.add_argument('--betas', type=tuple, default=(0.9, 0.999), help="Beta Valu
 
 # Miscellaneous
 parser.add_argument('--mode', type=str, default='train', help="Mode. Supports: train, test")
-parser.add_argument('--dim', type=int, default=48, help="Model Dimension Multiplicator")
+parser.add_argument('--dim', type=int, default=24, help="Model Dimension Multiplicator")
 parser.add_argument('--mask', type=float, default=0.95, help="Mask Density for Sintel")
 
 # Diffusion arguments
@@ -57,7 +57,7 @@ parser.add_argument('--alpha', type=float, default=0.41, help="Free parameter fo
 parser.add_argument('--grads', nargs='+', type=bool, default=[False, False, False, False, False, True],
                     help="Which parameters to learn in dict form")
 parser.add_argument('--lam', type=float, default=1., help="Diffusivity parameter")
-parser.add_argument('--steps', nargs='+', type=int, default=[25,25,25,25], help="How many steps per resolution")
+parser.add_argument('--steps', nargs='+', type=int, default=[5,15,35,45], help="How many steps per resolution")
 parser.add_argument('--step', type=int, default=5, help="How many steps per resolution")
 parser.add_argument('--disc', type=str, default="DB", help="Discretization")
 
@@ -159,7 +159,7 @@ def main_worker(gpu, ngpus, args):
     pytorch_total_params = sum(p.numel() for p in net.parameters())
     print(f"Created Model {args.model} with {pytorch_total_params} total Parameters")
     # Load ModelTrainer and Potentialy saved state
-    trainer = ModelTrainer(net, **vars(args)) if args.model_mode == 'single' else GANModelTrainer(net.G,net.C,**vars(args))
+    trainer = ModelTrainer(net, **vars(args)) if args.model_mode == 'Single' else GANModelTrainer(net.G,net.C,**vars(args))
 
     if args.mode == 'test':
         #test_dataset = dataset(os.path.join(args.data_path, f'test'))
