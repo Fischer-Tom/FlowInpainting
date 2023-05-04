@@ -4,43 +4,81 @@ import torch.nn.functional as F
 
 class DiffusionBlock(nn.Module):
 
-    def __init__(self, tau, grads, **kwargs):
+    def __init__(self, tau, grads,alpha, **kwargs):
         super().__init__()
+
+        self.pad = nn.ReplicationPad2d((0,1,0,1))
+        grad_x1,grad_x2, grad_y1,grad_y2 = self.get_weight(2)
+        self.grad_x1 = nn.Parameter(grad_x1, requires_grad=True)
+        self.grad_x2 = nn.Parameter(grad_x2, requires_grad=True)
+        self.grad_y1 = nn.Parameter(grad_y1, requires_grad=True)
+        self.grad_y2 = nn.Parameter(grad_y2, requires_grad=True)
+        self.alpha = nn.Parameter(torch.tensor(alpha), requires_grad=grads.get('alpha'))
+        if self.alpha > 0:
+            tau = 1.0 / (4.0 * (1.0 - self.alpha))
         self.tau = nn.Parameter(torch.tensor(tau), requires_grad=grads.get('tau'))
-        self.pad = nn.ReplicationPad2d(1)
-        grad_x, grad_y = self.get_weight(2)
-        self.grad_x = nn.Parameter(grad_x, requires_grad=True)
-        self.grad_y = nn.Parameter(grad_y, requires_grad=True)
+
 
     def forward(self, u, a,b,c):
 
+        a = a[:,:,1:,1:]
+        b = b[:, :, 1:, 1:]
+        c = c[:, :, 1:, 1:]
+        sign = torch.sign(b)
+        alpha = self.alpha
+        beta = (1. - 2. * alpha) * sign
 
-        ux = F.conv2d(self.pad(u), self.grad_x, groups = u.size(1))
-        uy = F.conv2d(self.pad(u), self.grad_y, groups= u.size(1))
+        w1a = a * (1-alpha) / 2
+        w2a = a * alpha / 2
+        w1b = b * (1-beta) / 4
+        w2b = b * (1+beta) / 4
+        w1c = c * (1-alpha) / 2
+        w2c = c * alpha / 2
 
-        uxx = F.conv2d(a*self.pad(ux)+b*self.pad(uy), -self.grad_x.flip(2).flip(3), groups=ux.size(1))
-        uyy = F.conv2d(b*self.pad(ux)+c*self.pad(uy), -self.grad_y.flip(2).flip(3), groups=uy.size(1))
 
-        Au = uxx + uyy
+        ux1 = self.pad(F.conv2d(self.pad(u), self.grad_x1, groups = u.size(1)))
+        ux2 = self.pad(F.conv2d(self.pad(u), self.grad_x2, groups = u.size(1)))
+        uy1 = self.pad(F.conv2d(self.pad(u), self.grad_y1, groups = u.size(1)))
+        uy2 = self.pad(F.conv2d(self.pad(u), self.grad_y2, groups = u.size(1)))
+
+
+        uxx1 = F.conv2d(w1a*ux1+w2a*ux2+w1b*uy1+w2b*uy2, -self.grad_x1.flip(2).flip(3), groups=ux1.size(1))
+        uxx2 = F.conv2d(w2a*ux1+w1a*ux2+w2b*uy1+w1b*uy2, -self.grad_x2.flip(2).flip(3), groups=ux2.size(1))
+
+        uyy1 = F.conv2d(w1b*ux1 + w2b*ux2 + w1c*uy1 + w2c*uy2, -self.grad_y1.flip(2).flip(3), groups=uy1.size(1))
+        uyy2 = F.conv2d(w2b*ux1 + w1b*ux2 + w2c*uy1 + w1c*uy2, -self.grad_y2.flip(2).flip(3), groups=uy2.size(1))
+
+
+        Au = 0.5*(uxx1 + uxx2 + uyy1 + uyy2)
         u = (u + self.tau * Au)
-
+        if Au.isnan().any():
+            print("Happened")
         return u
     def get_weight(self,c, h1=1, h2=1):
-        hx = 1 / (1.4142*h1)
-        hy = 1 / (1.4142*h2)
-        weightx = torch.zeros((1, 1, 3, 3))
-        weighty = torch.zeros((1, 1, 3, 3))
-        weightx[0][0][1][1] = -hx
-        weightx[0][0][1][2] = hx
-        weighty[0][0][1][1] = -hy
-        weighty[0][0][2][1] = hy
+        hx = 1 / (h1)
+        hy = 1 / (h2)
+        weightx1 = torch.zeros((1, 1, 2, 2))
+        weightx2 = torch.zeros((1, 1, 2, 2))
+        weighty1 = torch.zeros((1, 1, 2, 2))
+        weighty2 = torch.zeros((1, 1, 2, 2))
+        weightx1[0][0][0][0] = -hx
+        weightx1[0][0][0][1] = hx
+        weightx2[0][0][1][0] = -hx
+        weightx2[0][0][1][1] = hx
+        weighty1[0][0][0][0] = -hy
+        weighty1[0][0][1][0] = hy
+        weighty2[0][0][0][1] = -hx
+        weighty2[0][0][1][1] = hx
 
-        image_weight_x = weightx.repeat(c, 1, 1, 1)
-        image_weight_y = weighty.repeat(c, 1, 1, 1)
+        image_weight_x1 = weightx1.repeat(c, 1, 1, 1)
+        image_weight_x2 = weightx2.repeat(c, 1, 1, 1)
+        image_weight_y1 = weighty1.repeat(c, 1, 1, 1)
+        image_weight_y2 = weighty2.repeat(c, 1, 1, 1)
 
-        return image_weight_x, image_weight_y
 
-class WWW_DiffusionBlock(nn.Module):
+        return image_weight_x1, image_weight_x2, image_weight_y1, image_weight_y2
+
+class WWWDiffusion(nn.Module):
 
     def __init__(self, tau, alpha, grads, **kwargs):
         super().__init__()

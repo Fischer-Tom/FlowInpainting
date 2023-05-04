@@ -7,8 +7,7 @@ from torch.utils.tensorboard import SummaryWriter
 from torch.distributed import init_process_group
 import os
 from models.ModelTrainer import ModelTrainer
-from models.ModelTrainerOF import ModelTrainerOF
-from models.Diffusivities import make_diffusivity, PM2
+from models.GANModelTrainer import GANModelTrainer
 
 parser = argparse.ArgumentParser(description="OFNet")
 
@@ -16,13 +15,13 @@ parser = argparse.ArgumentParser(description="OFNet")
 parser.add_argument('--batch_size', type=int, default=4, help="Number of Image pairs per batch")
 parser.add_argument('--augment', type=bool, default=False, help="Use Data Augmentation")
 parser.add_argument('--seed', type=int, default=42, help="Seed for the Random Number Generator")
-parser.add_argument('--data_path', type=str, default='Dataset/Data',
+parser.add_argument('--data_path', type=str, default='dataset/Sintel',
                     help="Relative or Absolute Path to the training Data")
 parser.add_argument('--dl_workers', type=int, default=4, help="Workers for the Dataloader")
 parser.add_argument('--train_split', type=float, default=0.9, help="Fraction of the Dataset to use for Training")
 parser.add_argument('--test_split', type=float, default=0.05, help="Fraction of the Dataset to use for Testing")
-parser.add_argument('--dataset', type=str, default="FlyingGeometry",
-                    help="Dataset to use. Supports: FlyingGeometry, FlyingChairs")
+parser.add_argument('--dataset', type=str, default="FlyingThings",
+                    help="Dataset to use. Supports: FlyingThings, Sintel")
 
 # Training Details
 parser.add_argument('--train_iter', type=int, default=900_000, help="Number of Epochs to train")
@@ -31,6 +30,8 @@ parser.add_argument('--test_interval', type=int, default=15_000,
 parser.add_argument('--distributed', type=bool, default=False, help="Use Multiple GPUs for training")
 parser.add_argument('--model', type=str, default="FlowNetS",
                     help="Model to train. Supports: FlowNetS, LCONVFlowNetS, FullFlowNetS, LCONCFullFlowNetS")
+parser.add_argument('--model_mode', type=str, default="Single",
+                    help="Model to train. Supports: Single, GAN")
 
 # Load and Save Paths
 parser.add_argument('--pretrained', type=str, default="", help="Pretrained Model")
@@ -45,8 +46,8 @@ parser.add_argument('--betas', type=tuple, default=(0.9, 0.999), help="Beta Valu
 
 # Miscellaneous
 parser.add_argument('--mode', type=str, default='train', help="Mode. Supports: train, test")
-parser.add_argument('--dim', type=int, default=64, help="Model Dimension Multiplicator")
-parser.add_argument('--mask', type=float, default=0.99, help="Mask Density for Sintel")
+parser.add_argument('--dim', type=int, default=48, help="Model Dimension Multiplicator")
+parser.add_argument('--mask', type=float, default=0.95, help="Mask Density for Sintel")
 
 # Diffusion arguments
 parser.add_argument('--tau', type=float, default=2., help='timestep size')
@@ -82,15 +83,18 @@ def main_worker(gpu, ngpus, args):
     # Load Model here
     net = None
     ds = 'IP'
+
     try:
         if "Res_InpaintingFlowNetNet" in args.model:
-            import models.Res_InpaintingFlowNet.Res_InpaintingFlowNet as model
+            from models.Res_InpaintingFlowNet import Res_InpaintingFlowNet as model
         elif "InpaintingNet" in args.model:
-            import models.InpaintingNet.InpaintingNetwork as model
+            from models.InpaintingNet import InpaintingNetwork as model
         elif 'InpaintingFlowNet' in args.model:
-            import models.InpaintingNet.InpaintingFlowNet as model
+            from models.InpaintingNet import InpaintingFlowNet as model
         elif 'FlowNetS+' in args.model:
-            import models.FlowNetSP.FlowNetSP as model
+            from models.FlowNetSP import FlowNetSP as model
+        elif 'WGAIN' in args.model:
+            from models.WGAIN import WGAIN as model
         else:
             raise ImportError()
 
@@ -115,37 +119,8 @@ def main_worker(gpu, ngpus, args):
     # Datasets and Loaders
 
     try:
-        if args.dataset == 'FlyingGeometry':
-            from Dataset.FlyingGeometry import FlyingGeometryDataset
-            dataset = FlyingGeometryDataset
-            train_dataset = dataset(os.path.join(args.data_path, f'train'))
-            train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=args.batch_size,
-                                                       shuffle=True, num_workers=args.dl_workers)
-            val_dataset = dataset(os.path.join(args.data_path, f'val'))
-            validation_loader = torch.utils.data.DataLoader(val_dataset, batch_size=args.batch_size,
-                                                            shuffle=True, num_workers=args.dl_workers)
-        elif args.dataset == 'FlyingChairs':
-            from Dataset.FlyingChairs import FlyingChairsDataset
-            from torchvision import transforms
-            dataset = FlyingChairsDataset
-            params = {'batch_size': 4,
-                      'shuffle': True,
-                      'num_workers': 4}
-            # Datasets and Loaders
-            dataset = dataset(args.data_path)
-            set_size = dataset.__len__()
-            train_size = int(0.8 * set_size)
-            test_size = int(0.1 * set_size)
-            val_size = set_size - train_size - test_size
-            assert (train_size + test_size + val_size <= set_size)
-            train_dataset, test_dataset, val_dataset = torch.utils.data.random_split(dataset,
-                                                                                     [train_size, test_size, val_size],
-                                                                                     generator=torch.Generator().manual_seed(
-                                                                                         42))
-            train_loader = torch.utils.data.DataLoader(train_dataset, **params)
-            validation_loader = torch.utils.data.DataLoader(val_dataset, **params)
-        elif args.dataset == 'Sintel':
-            from Dataset.Sintel import SintelDataset
+        if args.dataset == 'Sintel':
+            from dataset.Sintel import SintelDataset
             from torchvision import transforms
             dataset = SintelDataset
             params = {'batch_size': 4,
@@ -157,8 +132,8 @@ def main_worker(gpu, ngpus, args):
             train_loader = torch.utils.data.DataLoader(train_dataset, **params)
             validation_loader = torch.utils.data.DataLoader(val_dataset, **params)
         elif args.dataset == 'FlyingThings':
-            from Dataset.FlyingThings import FlyingThingsDataset
-            from Dataset.Sintel import SintelDataset
+            from dataset.FlyingThings import FlyingThingsDataset
+            from dataset.Sintel import SintelDataset
 
             from torchvision import transforms
             dataset = FlyingThingsDataset
@@ -184,7 +159,7 @@ def main_worker(gpu, ngpus, args):
     pytorch_total_params = sum(p.numel() for p in net.parameters())
     print(f"Created Model {args.model} with {pytorch_total_params} total Parameters")
     # Load ModelTrainer and Potentialy saved state
-    trainer = ModelTrainerOF(net, **vars(args)) if ds=='OF' else ModelTrainer(net, **vars(args))
+    trainer = ModelTrainer(net, **vars(args)) if args.model_mode == 'single' else GANModelTrainer(net.G,net.C,**vars(args))
 
     if args.mode == 'test':
         #test_dataset = dataset(os.path.join(args.data_path, f'test'))

@@ -6,7 +6,7 @@ from utils.basic_blocks import SimpleConv, SimpleUpConv
 
 class FlowNetSP(nn.Module):
 
-    def __init__(self, dim=64):
+    def __init__(self, dim=64, **kwargs):
         super().__init__()
         self.encoder = Encoder(dim=dim)
         self.decoder = Decoder(in_ch=dim * 16)
