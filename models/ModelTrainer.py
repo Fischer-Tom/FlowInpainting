@@ -74,11 +74,12 @@ class ModelTrainer:
             running_loss += batch_risk.item()
             iterations += 1
             self.train_iters += 1
-
+            print(f"loss:{running_loss / iterations}")
+            print(f"time: {start.elapsed_time(end)}")
             if self.train_iters > self.total_iters:
                 break
         Flow_vis = flow_vis.flow_to_color(Flow[0].detach().cpu().permute(1,2,0).numpy())
-        Pred_vis = flow_vis.flow_to_color(predict_flow[0][0].detach().cpu().permute(1, 2, 0).numpy())
+        Pred_vis = flow_vis.flow_to_color(predict_flow[0].detach().cpu().permute(1, 2, 0).numpy())
         I1_vis = inverse_normalize(I1[0].detach().cpu())
         Masked_vis = flow_vis.flow_to_color(Masked_Flow[0].detach().cpu().permute(1, 2, 0).numpy())
         Mask_vis = torch.cat((Mask[0],Mask[0],Mask[0]),dim=0).detach().cpu()

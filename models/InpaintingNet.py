@@ -14,7 +14,7 @@ class InpaintingNetwork(nn.Module):
         self.sum_pool = nn.AvgPool2d(2, divisor_override=1)
         self.av_pool = nn.AvgPool2d(2)
         self.output_resolution = len(steps) - 1
-        self.blocks = nn.ModuleList([FSI_Block(s, disc, **kwargs) for s in steps])
+        self.blocks = nn.ModuleList([torch.jit.script(FSI_Block(s, disc, **kwargs)) for s in steps])
         self.disc = disc
         self.DM = DiffusivityModule(dim)
         self.g = PeronaMalikDiffusivity()
@@ -27,10 +27,10 @@ class InpaintingNetwork(nn.Module):
         return EPE_Loss(pred, gt)
 
     def get_scheduler(self, optimizer):
-        return torch.optim.lr_scheduler.StepLR(optimizer, step_size=10_000, gamma=0.5)
+        return torch.optim.lr_scheduler.StepLR(optimizer, step_size=100_000, gamma=0.5)
 
     def update_lr(self, scheduler, iter):
-        if iter > 50_000:
+        if iter > 300_000:
             scheduler.step()
 
     def get_masks(self, I, m, u):
