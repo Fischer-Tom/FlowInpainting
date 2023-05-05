@@ -46,7 +46,7 @@ parser.add_argument('--betas', type=tuple, default=(0.9, 0.999), help="Beta Valu
 
 # Miscellaneous
 parser.add_argument('--mode', type=str, default='train', help="Mode. Supports: train, test")
-parser.add_argument('--dim', type=int, default=64, help="Model Dimension Multiplicator")
+parser.add_argument('--dim', type=int, default=44, help="Model Dimension Multiplicator")
 parser.add_argument('--mask', type=float, default=0.95, help="Mask Density for Sintel")
 
 # Diffusion arguments
@@ -58,7 +58,7 @@ parser.add_argument('--grads', nargs='+', type=bool, default=[False, False, Fals
                     help="Which parameters to learn in dict form")
 parser.add_argument('--lam', type=float, default=1., help="Diffusivity parameter")
 parser.add_argument('--steps', nargs='+', type=int, default=[5,15,30,45], help="How many steps per resolution")
-parser.add_argument('--step', type=int, default=3, help="How many steps per resolution")
+parser.add_argument('--step', type=int, default=1, help="How many steps per resolution")
 parser.add_argument('--disc', type=str, default="DB", help="Discretization")
 parser.add_argument('--learned_mode', type=int, default=5, help="How many parameters to learn")
 
