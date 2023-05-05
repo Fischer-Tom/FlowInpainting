@@ -47,32 +47,18 @@ class SintelDataset(Dataset):
         return im0, im1, (torch.FloatTensor(1,h,w).uniform_()>self.density).float(), flow
 
     def get_IDs(self, img_dir):
-        if self.mode == 'train':
-            data = ['clean','final']
-            for type in data:
-                folder_map = os.listdir(os.path.join(img_dir,type))
+        data = ['final']
+        for type in data:
+            folder_map = os.listdir(os.path.join(img_dir,type))
 
-                folder_map.remove('temple_2')
+            for folder in folder_map:
+                for file in os.listdir(os.path.join(img_dir,type,folder)):
+                    filename = file[:-3]
+                    index = ''.join(x for x in filename if x.isdigit())
+                    second_image = int(index) + 1
+                    filename2 = f'frame_' + f'{second_image}'.zfill(4) + '.png'
+                    if os.path.exists(os.path.join(img_dir,'flow',folder,filename)+'flo'):
+                        self.img0_list.append(os.path.join(img_dir,type,folder,file))
+                        self.img1_list.append(os.path.join(img_dir,type,folder,filename2))
 
-                for folder in folder_map:
-                    for file in os.listdir(os.path.join(img_dir,type,folder)):
-                        filename = file[:-3]
-                        index = ''.join(x for x in filename if x.isdigit())
-                        second_image = int(index) + 1
-                        filename2 = f'frame_' + f'{second_image}'.zfill(4) + '.png'
-                        if os.path.exists(os.path.join(img_dir,'flow',folder,filename)+'flo'):
-                            self.img0_list.append(os.path.join(img_dir,type,folder,file))
-                            self.img1_list.append(os.path.join(img_dir,type,folder,filename2))
-
-                            self.flow_list.append(os.path.join(img_dir,'flow',folder,filename)+'flo')
-        else:
-            folder = 'temple_2'
-            for file in os.listdir(os.path.join(img_dir, 'final', folder)):
-                filename = file[:-3]
-                index = ''.join(x for x in filename if x.isdigit())
-                second_image = int(index) + 1
-                filename2 = f'frame_'+ f'{second_image}'.zfill(4)+'.png'
-                if os.path.exists(os.path.join(img_dir, 'flow', folder, filename) + 'flo'):
-                    self.img0_list.append(os.path.join(img_dir, 'final', folder, file))
-                    self.img1_list.append(os.path.join(img_dir, 'final', folder, filename2))
-                    self.flow_list.append(os.path.join(img_dir, 'flow', folder, filename) + 'flo')
+                        self.flow_list.append(os.path.join(img_dir,'flow',folder,filename)+'flo')

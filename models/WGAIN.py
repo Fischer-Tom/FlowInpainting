@@ -55,9 +55,9 @@ class Generator(nn.Module):
         self.y5 = nn.ConvTranspose2d(in_channels=128+in_ch,out_channels=8, kernel_size=3, padding=1)
         self.y = nn.ConvTranspose2d(in_channels=8,out_channels=2, kernel_size=3, padding=1)
 
-    def forward(self, I,M,u):
-        r = torch.randn_like(u)
-        x = torch.cat((I,M,u,r),dim=1)
+    def forward(self, I,M,u,r):
+
+        x = torch.cat((I,u,r,M),dim=1)
 
         x11 = self.elu(self.x11(x))
         x12 = self.elu(self.x12(x))

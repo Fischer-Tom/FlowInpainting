@@ -43,9 +43,10 @@ class GANModelTrainer:
         start = torch.cuda.Event(enable_timing=True)
         end = torch.cuda.Event(enable_timing=True)
         I1, Mask, Flow, predict_flow = None, None, None, None
-        for i, sample in enumerate(loader):
+        #for i, sample in enumerate(loader):
 
-
+        sample = next(iter(loader))
+        for i in range(5000):
             sample = [samp.cuda(self.gpu) for samp in sample]
 
             I1, I2 = sample[0:2]
@@ -57,26 +58,29 @@ class GANModelTrainer:
             # Time Iteration duration
 
             start.record()
+            r = (1 - Mask) * torch.randn_like(Masked_Flow)
 
             self.set_requires_grad(self.C, True)
             # Query Model
-            fake = self.G(I1, Mask, Masked_Flow)
+            fake = self.G(I1, Mask, Masked_Flow,r)
             real = Flow
             fake_guess = self.C(fake,Mask)
             real_guess = self.C(real,Mask)
-            loss_C = -torch.mean(real_guess) + torch.mean(fake_guess)
+            loss_C = -(torch.mean(real_guess) - torch.mean(fake_guess))
 
             # Update Weights and learning rate
             self.optimizer_C.zero_grad()
             loss_C.backward(retain_graph=True)
-            torch.nn.utils.clip_grad_norm_(self.C.parameters(), 1.)
             self.optimizer_C.step()
+            for p in self.C.parameters():
+                p.data.clamp_(-1,1)
+
 
             self.set_requires_grad(self.C, False)
             self.optimizer_G.zero_grad()
             fake_guess = self.C(fake,Mask)
-            epe = EPE_Loss(fake,real)
-            loss_gen = -0.005*torch.mean(fake_guess) + epe
+            mae = torch.mean(torch.abs(fake-real))
+            loss_gen = -0.005*torch.mean(fake_guess) + mae
             loss_gen.backward()
             self.optimizer_G.step()
 
@@ -85,8 +89,9 @@ class GANModelTrainer:
             end.record()
             torch.cuda.synchronize()
             # Update running loss
-            running_loss += epe.item()
+            running_loss += mae.item()
             iterations += 1
+            print(f"Loss: {running_loss/iterations}")
             self.train_iters += 1
             if self.train_iters > self.total_iters:
                 break
@@ -117,11 +122,12 @@ class GANModelTrainer:
                 Masked_Flow = torch.zeros_like(Flow).cuda(self.gpu)
                 indices = torch.cat((Mask, Mask), 1) == 1.
                 Masked_Flow[indices] = Flow[indices]
-                # Query Model
+                r = (1 - Mask) * torch.randn_like(Masked_Flow)
 
+                # Query Model
                 start.record()
 
-                predict_flow = self.G(I1, Mask, Masked_Flow)
+                predict_flow = self.G(I1, Mask, Masked_Flow,r)
                 batch_risk = EPE_Loss(predict_flow,Flow)
                 end.record()
                 torch.cuda.synchronize()
