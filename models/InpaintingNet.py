@@ -16,7 +16,7 @@ class InpaintingNetwork(nn.Module):
         self.output_resolution = len(steps) - 1
         self.alpha = torch.tensor(alpha)
         self.learned_mode = learned_mode
-        self.blocks = nn.ModuleList([FSI_Block(s, disc, **kwargs) for s in steps])
+        self.blocks = nn.ModuleList([torch.jit.script(FSI_Block(s, disc, **kwargs)) for s in steps])
         self.disc = disc
         self.DM = DiffusivityModule(dim,self.learned_mode)
         self.g = PeronaMalikDiffusivity()
