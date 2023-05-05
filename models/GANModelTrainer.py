@@ -91,7 +91,7 @@ class GANModelTrainer:
             # Update running loss
             running_loss += mae.item()
             iterations += 1
-            print(f"Loss: {running_loss/iterations}")
+
             self.train_iters += 1
             if self.train_iters > self.total_iters:
                 break
