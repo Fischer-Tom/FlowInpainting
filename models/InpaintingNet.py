@@ -8,18 +8,23 @@ from utils.basic_blocks import PeronaMalikDiffusivity, WWWDiffusion, DiffusionBl
 
 class InpaintingNetwork(nn.Module):
 
-    def __init__(self, dim,steps,disc, **kwargs):
+    def __init__(self, dim,steps,disc,alpha, learned_mode,**kwargs):
         super().__init__()
         self.max_pool = nn.MaxPool2d(2)
         self.sum_pool = nn.AvgPool2d(2, divisor_override=1)
         self.av_pool = nn.AvgPool2d(2)
         self.output_resolution = len(steps) - 1
-        self.blocks = nn.ModuleList([torch.jit.script(FSI_Block(s, disc, **kwargs)) for s in steps])
+        self.alpha = torch.tensor(alpha)
+        self.learned_mode = learned_mode
+        self.blocks = nn.ModuleList([FSI_Block(s, disc, **kwargs) for s in steps])
         self.disc = disc
-        self.DM = DiffusivityModule(dim)
+        self.DM = DiffusivityModule(dim,self.learned_mode)
         self.g = PeronaMalikDiffusivity()
         self.zero_pad = nn.ZeroPad2d(1)
-        self.constrain_weight()
+        with torch.no_grad():
+            self.constrain_weight()
+        self.pad = nn.ReplicationPad2d(1)
+
 
 
 
@@ -54,10 +59,10 @@ class InpaintingNetwork(nn.Module):
         u = pre_guess
         for j, (f,c,i,block) in enumerate(zip(flows, masks, image_features, self.blocks)):
             if u is None: u = f
-            Da,Db,Dc = self.get_DiffusionTensor(i)
+            Da,Db,Dc,alpha = self.get_DiffusionTensor(i)
 
             u = (1. - c) * u + c * f
-            u = block(u, f, c, Da,Db,Dc)
+            u = block(u, f, c, Da,Db,Dc,alpha)
             if self.training and j == self.output_resolution:
                 break
             if j < self.output_resolution:
@@ -79,7 +84,11 @@ class InpaintingNetwork(nn.Module):
         b = self.zero_pad(b)
         c = self.zero_pad(c)
 
-        return a,b,c
+        if self.learned_mode == 5:
+            alpha = self.pad(torch.sigmoid(x[:,4:5,:,:])/2)
+        else:
+            alpha = self.alpha
+        return a,b,c, alpha
 
     def constrain_weight(self):
         if self.disc == 'DB':
@@ -96,15 +105,15 @@ class FSI_Block(nn.Module):
         super().__init__()
         self.alphas = nn.ParameterList([nn.Parameter(torch.tensor((4 * i + 2) / (2 * i + 3)),
                                                      requires_grad=kwargs['grads']['alphas']) for i in range(timesteps)])
-        self.blocks = nn.ModuleList([DiffusionBlock(**kwargs) for _ in range(timesteps)]) if disc == "DB" else \
+        self.blocks = nn.ModuleList([DiffusionBlock(2,**kwargs) for _ in range(timesteps)]) if disc == "DB" else \
             nn.ModuleList([WWWDiffusion(**kwargs) for _ in range(timesteps)])
 
 
-    def forward(self, u, f, c,Da,Db,Dc):
+    def forward(self, u, f, c,Da,Db,Dc,alpha):
 
         u_prev = u
-        for alpha, block in zip(self.alphas, self.blocks):
-            diffused = alpha * block(u, Da, Db, Dc) + (1 - alpha) * u_prev
+        for a, block in zip(self.alphas, self.blocks):
+            diffused = a * block(u, Da, Db, Dc,alpha) + (1 - a) * u_prev
             u_new = (1. - c) * diffused + c * f
             u_prev = u
             u = u_new
@@ -113,7 +122,7 @@ class FSI_Block(nn.Module):
 
 class DiffusivityModule(nn.Module):
 
-    def __init__(self, dim):
+    def __init__(self, dim, learned_mode):
         super().__init__()
         self.conv0 = SimpleConv(3, dim, 3, 1, 1)
         self.conv1 = SimpleConv(dim, dim, 3, 2, 1)
@@ -129,10 +138,10 @@ class DiffusivityModule(nn.Module):
         self.deconv2 = SimpleUpConv(dim * 4 + dim * 2, dim * 2, 1, 2, 0, 1)
         self.deconv1 = SimpleUpConv(dim * 2 + dim*1, dim, 1, 2, 0, 1)
 
-        self.DT0 = nn.Conv2d(in_channels=dim+dim,out_channels=4,kernel_size=3,stride=1,padding=1)
-        self.DT1 = nn.Conv2d(in_channels=dim*2+dim,out_channels=4,kernel_size=3,stride=1,padding=1)
-        self.DT2 = nn.Conv2d(in_channels=dim*4+dim*2,out_channels=4,kernel_size=3,stride=1,padding=1)
-        self.DT3 = nn.Conv2d(in_channels=dim*4+dim*4,out_channels=4,kernel_size=3,stride=1,padding=1)
+        self.DT0 = nn.Conv2d(in_channels=dim+dim,out_channels=learned_mode,kernel_size=3,stride=1,padding=1)
+        self.DT1 = nn.Conv2d(in_channels=dim*2+dim,out_channels=learned_mode,kernel_size=3,stride=1,padding=1)
+        self.DT2 = nn.Conv2d(in_channels=dim*4+dim*2,out_channels=learned_mode,kernel_size=3,stride=1,padding=1)
+        self.DT3 = nn.Conv2d(in_channels=dim*4+dim*4,out_channels=learned_mode,kernel_size=3,stride=1,padding=1)
 
 
         self.relu = nn.ReLU()
@@ -154,6 +163,8 @@ class DiffusivityModule(nn.Module):
         x2 = self.DT2(x2)
         x1 = self.DT1(x1)
         x0 = self.DT0(x0)
+
+
 
 
         return [x3,x2,x1,x0]

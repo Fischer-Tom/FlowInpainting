@@ -43,8 +43,6 @@ class ModelTrainer:
         end = torch.cuda.Event(enable_timing=True)
         I1, Mask, Flow, predict_flow = None, None, None, None
         for i, sample in enumerate(loader):
-
-
             sample = [samp.cuda(self.gpu) for samp in sample]
 
             I1, I2 = sample[0:2]
@@ -74,9 +72,11 @@ class ModelTrainer:
             running_loss += batch_risk.item()
             iterations += 1
             self.train_iters += 1
-
             if self.train_iters > self.total_iters:
                 break
+            if not torch.is_tensor(predict_flow):
+                predict_flow = predict_flow[0]
+            print(running_loss / iterations)
         Flow_vis = flow_vis.flow_to_color(Flow[0].detach().cpu().permute(1,2,0).numpy())
         Pred_vis = flow_vis.flow_to_color(predict_flow[0].detach().cpu().permute(1, 2, 0).numpy())
         I1_vis = inverse_normalize(I1[0].detach().cpu())

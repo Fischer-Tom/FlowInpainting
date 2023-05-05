@@ -46,20 +46,22 @@ parser.add_argument('--betas', type=tuple, default=(0.9, 0.999), help="Beta Valu
 
 # Miscellaneous
 parser.add_argument('--mode', type=str, default='train', help="Mode. Supports: train, test")
-parser.add_argument('--dim', type=int, default=24, help="Model Dimension Multiplicator")
+parser.add_argument('--dim', type=int, default=64, help="Model Dimension Multiplicator")
 parser.add_argument('--mask', type=float, default=0.95, help="Mask Density for Sintel")
 
 # Diffusion arguments
-parser.add_argument('--tau', type=float, default=2., help='timestep size')
-parser.add_argument('--diffusion', type=str, default='encoder',
+parser.add_argument('--tau', type=float, default=0.41, help='timestep size')
+parser.add_argument('--diffusion_position', type=str, default='encoderdecoder',
                     help='Which diffusion type. Supports: encoder, decoder, none')
 parser.add_argument('--alpha', type=float, default=0.41, help="Free parameter for the WWW stencil")
 parser.add_argument('--grads', nargs='+', type=bool, default=[False, False, False, False, False, True],
                     help="Which parameters to learn in dict form")
 parser.add_argument('--lam', type=float, default=1., help="Diffusivity parameter")
-parser.add_argument('--steps', nargs='+', type=int, default=[5,15,35,45], help="How many steps per resolution")
-parser.add_argument('--step', type=int, default=5, help="How many steps per resolution")
+parser.add_argument('--steps', nargs='+', type=int, default=[5,15,30,45], help="How many steps per resolution")
+parser.add_argument('--step', type=int, default=3, help="How many steps per resolution")
 parser.add_argument('--disc', type=str, default="DB", help="Discretization")
+parser.add_argument('--learned_mode', type=int, default=5, help="How many parameters to learn")
+
 
 
 parser.add_argument('--use_dt', type=bool, default=False, help="Whether or not we use DT in Res_InpaintingNet")
@@ -90,7 +92,7 @@ def main_worker(gpu, ngpus, args):
         elif "InpaintingNet" in args.model:
             from models.InpaintingNet import InpaintingNetwork as model
         elif 'InpaintingFlowNet' in args.model:
-            from models.InpaintingNet import InpaintingFlowNet as model
+            from models.InpaintingFlowNet import InpaintingFlowNet as model
         elif 'FlowNetS+' in args.model:
             from models.FlowNetSP import FlowNetSP as model
         elif 'WGAIN' in args.model:

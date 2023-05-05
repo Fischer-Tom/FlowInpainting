@@ -4,28 +4,22 @@ import torch.nn.functional as F
 
 class DiffusionBlock(nn.Module):
 
-    def __init__(self, tau, grads,alpha, **kwargs):
+    def __init__(self,c, tau, grads, **kwargs):
         super().__init__()
 
-        self.pad = nn.ReplicationPad2d((0,1,0,1))
-        grad_x1,grad_x2, grad_y1,grad_y2 = self.get_weight(2)
+        self.pad = nn.ReplicationPad2d(1)
+        grad_x1,grad_x2, grad_y1,grad_y2 = self.get_weight(c)
         self.grad_x1 = nn.Parameter(grad_x1, requires_grad=True)
         self.grad_x2 = nn.Parameter(grad_x2, requires_grad=True)
         self.grad_y1 = nn.Parameter(grad_y1, requires_grad=True)
         self.grad_y2 = nn.Parameter(grad_y2, requires_grad=True)
-        self.alpha = nn.Parameter(torch.tensor(alpha), requires_grad=grads.get('alpha'))
-        if self.alpha > 0:
-            tau = 1.0 / (4.0 * (1.0 - self.alpha))
-        self.tau = nn.Parameter(tau, requires_grad=grads.get('tau'))
+        self.tau = nn.Parameter(torch.tensor(tau), requires_grad=True)
 
 
-    def forward(self, u, a,b,c):
+    def forward(self, u, a,b,c, alpha):
 
-        a = a[:,:,1:,1:]
-        b = b[:, :, 1:, 1:]
-        c = c[:, :, 1:, 1:]
+
         sign = torch.sign(b)
-        alpha = self.alpha
         beta = (1. - 2. * alpha) * sign
 
         w1a = a * (1-alpha) / 2
@@ -35,11 +29,17 @@ class DiffusionBlock(nn.Module):
         w1c = c * (1-alpha) / 2
         w2c = c * alpha / 2
 
+        w1a = w1a[:,:,:-1,:-1]
+        w2a = w2a[:,:,:-1,:-1]
+        w1b = w1b[:,:,:-1,:-1]
+        w2b = w2b[:,:,:-1,:-1]
+        w1c = w1c[:,:,:-1,:-1]
+        w2c = w2c[:,:,:-1,:-1]
 
-        ux1 = self.pad(F.conv2d(self.pad(u), self.grad_x1, groups = u.size(1)))
-        ux2 = self.pad(F.conv2d(self.pad(u), self.grad_x2, groups = u.size(1)))
-        uy1 = self.pad(F.conv2d(self.pad(u), self.grad_y1, groups = u.size(1)))
-        uy2 = self.pad(F.conv2d(self.pad(u), self.grad_y2, groups = u.size(1)))
+        ux1 = F.conv2d(self.pad(u), self.grad_x1, groups = u.size(1))
+        ux2 = F.conv2d(self.pad(u), self.grad_x2, groups = u.size(1))
+        uy1 = F.conv2d(self.pad(u), self.grad_y1, groups = u.size(1))
+        uy2 = F.conv2d(self.pad(u), self.grad_y2, groups = u.size(1))
 
 
         uxx1 = F.conv2d(w1a*ux1+w2a*ux2+w1b*uy1+w2b*uy2, -self.grad_x1.flip(2).flip(3), groups=ux1.size(1))
@@ -49,10 +49,9 @@ class DiffusionBlock(nn.Module):
         uyy2 = F.conv2d(w2b*ux1 + w1b*ux2 + w2c*uy1 + w1c*uy2, -self.grad_y2.flip(2).flip(3), groups=uy2.size(1))
 
 
-        Au = 0.5*(uxx1 + uxx2 + uyy1 + uyy2)
+        Au = (uxx1 + uxx2 + uyy1 + uyy2)
         u = (u + self.tau * Au)
-        if Au.isnan().any():
-            print("Happened")
+
         return u
     def get_weight(self,c, h1=1, h2=1):
         hx = 1 / (h1)
@@ -61,14 +60,10 @@ class DiffusionBlock(nn.Module):
         weightx2 = torch.zeros((1, 1, 2, 2))
         weighty1 = torch.zeros((1, 1, 2, 2))
         weighty2 = torch.zeros((1, 1, 2, 2))
-        weightx1[0][0][0][0] = -hx
-        weightx1[0][0][0][1] = hx
-        weightx2[0][0][1][0] = -hx
-        weightx2[0][0][1][1] = hx
-        weighty1[0][0][0][0] = -hy
-        weighty1[0][0][1][0] = hy
-        weighty2[0][0][0][1] = -hx
-        weighty2[0][0][1][1] = hx
+        nn.init.xavier_uniform_(weightx1)
+        nn.init.xavier_uniform_(weightx2)
+        nn.init.xavier_uniform_(weighty1)
+        nn.init.xavier_uniform_(weighty2)
 
         image_weight_x1 = weightx1.repeat(c, 1, 1, 1)
         image_weight_x2 = weightx2.repeat(c, 1, 1, 1)
@@ -80,29 +75,25 @@ class DiffusionBlock(nn.Module):
 
 class WWWDiffusion(nn.Module):
 
-    def __init__(self, tau, alpha, grads, **kwargs):
+    def __init__(self, tau, grads, **kwargs):
         super().__init__()
-        self.alpha = nn.Parameter(torch.tensor(alpha), requires_grad=grads.get('alpha'))
-        if self.alpha > 0:
-            tau = 1.0 / (4.0 * (1.0 - self.alpha))
-        self.tau = nn.Parameter(tau, requires_grad=grads.get('tau'))
+        self.tau = nn.Parameter(torch.tensor(tau), requires_grad=True)
         self.pad = nn.ReplicationPad2d(1)
 
-    def forward(self, u, a, b, c):
-        Au = self.get_delta(u, a, b, c)
+    def forward(self, u, a, b, c,alpha):
+        Au = self.get_delta(u, a, b, c,alpha)
 
         u = (u + self.tau * Au)
 
         return u
 
-    def get_delta(self, u, a, b, c):
+    def get_delta(self, u, a, b, c, alpha):
         _, _, h, w = u.shape
         h = h + 1
         w = w + 1
         u = self.pad(u)
 
         sign = torch.sign(b)
-        alpha = self.alpha
         beta = (1. - 2. * alpha) * sign
         delta = alpha * (a + c) + beta * b
         wpo = 0.5 * (a[:, :, 1:w, 1:h] - delta[:, :, 1:w, 1:h] + a[:, :, 1:w, 0:h - 1] - delta[:, :, 1:w, 0:h - 1])
