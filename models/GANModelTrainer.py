@@ -86,7 +86,7 @@ class GANModelTrainer:
             running_loss += mae.item()
             iterations += 1
             self.train_iters += 1
-            break
+            
             if self.train_iters > self.total_iters:
                 break
         Flow_vis = flow_vis.flow_to_color(real[0].detach().cpu().permute(1,2,0).numpy())
