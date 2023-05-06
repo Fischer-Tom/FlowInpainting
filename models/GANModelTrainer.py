@@ -80,17 +80,16 @@ class GANModelTrainer:
             self.optimizer_G.step()
 
 
-
             end.record()
             torch.cuda.synchronize()
             # Update running loss
             running_loss += mae.item()
             iterations += 1
-            print(running_loss / iterations)
             self.train_iters += 1
+            break
             if self.train_iters > self.total_iters:
                 break
-        Flow_vis = flow_vis.flow_to_color(Flow[0].detach().cpu().permute(1,2,0).numpy())
+        Flow_vis = flow_vis.flow_to_color(real[0].detach().cpu().permute(1,2,0).numpy())
         Pred_vis = flow_vis.flow_to_color(fake[0].detach().cpu().permute(1, 2, 0).numpy())
         I1_vis = inverse_normalize(I1[0].detach().cpu())
         Masked_vis = flow_vis.flow_to_color(Masked_Flow[0].detach().cpu().permute(1, 2, 0).numpy())
