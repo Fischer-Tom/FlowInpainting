@@ -43,9 +43,7 @@ class GANModelTrainer:
         start = torch.cuda.Event(enable_timing=True)
         end = torch.cuda.Event(enable_timing=True)
         I1, Mask, Flow, predict_flow = None, None, None, None
-        #for i, sample in enumerate(loader):
-        sample = next(iter(loader))
-        for i in range(5000):
+        for i, sample in enumerate(loader):
             sample = [samp.cuda(self.gpu) for samp in sample]
 
             I1, I2 = sample[0:2]
