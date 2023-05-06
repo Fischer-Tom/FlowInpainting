@@ -43,38 +43,37 @@ class GANModelTrainer:
         start = torch.cuda.Event(enable_timing=True)
         end = torch.cuda.Event(enable_timing=True)
         I1, Mask, Flow, predict_flow = None, None, None, None
-        for i, sample in enumerate(loader):
-
+        #for i, sample in enumerate(loader):
+        sample = next(iter(loader))
+        for i in range(5000):
             sample = [samp.cuda(self.gpu) for samp in sample]
 
             I1, I2 = sample[0:2]
             Mask = sample[2]
-            Flow = sample[-1]
-            Masked_Flow = torch.zeros_like(Flow).cuda(self.gpu)
+            real= sample[-1]
+            Masked_Flow = torch.zeros_like(real).cuda(self.gpu)
             indices = torch.cat((Mask, Mask),1) == 1.
-            Masked_Flow[indices] = Flow[indices]
+            Masked_Flow[indices] = real[indices]
             # Time Iteration duration
 
             start.record()
             r = (1 - Mask) * torch.randn_like(Masked_Flow)
-
-            self.set_requires_grad(self.C, True)
+            fake = self.G(I1, Mask, Masked_Flow, r)
             # Query Model
-            fake = self.G(I1, Mask, Masked_Flow,r)
-            real = Flow
+            self.set_requires_grad(self.C,True)
+            self.optimizer_C.zero_grad()
             fake_guess = self.C(fake,Mask)
             real_guess = self.C(real,Mask)
-            loss_C = -(torch.mean(real_guess) - torch.mean(fake_guess))
+            err_fake = torch.mean(fake_guess)
+            err_real = torch.mean(real_guess)
+            loss_C = -err_real + err_fake
 
             # Update Weights and learning rate
-            self.optimizer_C.zero_grad()
             loss_C.backward(retain_graph=True)
             self.optimizer_C.step()
-            for p in self.C.parameters():
-                p.data.clamp_(-1,1)
+            torch.nn.utils.clip_grad_norm_(self.C.parameters(),1.0)
 
-
-            self.set_requires_grad(self.C, False)
+            self.set_requires_grad(self.C,False)
             self.optimizer_G.zero_grad()
             fake_guess = self.C(fake,Mask)
             mae = torch.mean(torch.abs(fake-real))
@@ -89,7 +88,7 @@ class GANModelTrainer:
             # Update running loss
             running_loss += mae.item()
             iterations += 1
-
+            print(running_loss / iterations)
             self.train_iters += 1
             if self.train_iters > self.total_iters:
                 break
