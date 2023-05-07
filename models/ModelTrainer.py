@@ -4,6 +4,7 @@ import torch.nn as nn
 import torch.optim
 import flow_vis
 from imagelib.core import inverse_normalize
+import matplotlib.pyplot as plt
 class ModelTrainer:
 
 
@@ -76,6 +77,7 @@ class ModelTrainer:
                 break
             if not torch.is_tensor(predict_flow):
                 predict_flow = predict_flow[0]
+
         Flow_vis = flow_vis.flow_to_color(Flow[0].detach().cpu().permute(1,2,0).numpy())
         Pred_vis = flow_vis.flow_to_color(predict_flow[0].detach().cpu().permute(1, 2, 0).numpy())
         I1_vis = inverse_normalize(I1[0].detach().cpu())

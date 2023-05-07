@@ -1,4 +1,6 @@
 from os.path import join
+
+import matplotlib.pyplot as plt
 import torch
 import torch.optim
 import flow_vis
@@ -75,7 +77,7 @@ class GANModelTrainer:
             self.optimizer_G.zero_grad()
             fake_guess = self.C(fake,Mask)
             mae = torch.mean(torch.abs(fake-real))
-            loss_gen = -0.005*torch.mean(fake_guess) + mae
+            loss_gen = -0.0001*torch.mean(fake_guess) + mae
             loss_gen.backward()
             self.optimizer_G.step()
 
@@ -86,9 +88,9 @@ class GANModelTrainer:
             running_loss += mae.item()
             iterations += 1
             self.train_iters += 1
-            
             if self.train_iters > self.total_iters:
                 break
+
         Flow_vis = flow_vis.flow_to_color(real[0].detach().cpu().permute(1,2,0).numpy())
         Pred_vis = flow_vis.flow_to_color(fake[0].detach().cpu().permute(1, 2, 0).numpy())
         I1_vis = inverse_normalize(I1[0].detach().cpu())

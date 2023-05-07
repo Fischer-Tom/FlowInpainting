@@ -60,11 +60,14 @@ class DiffusionBlock(nn.Module):
         weightx2 = torch.zeros((1, 1, 2, 2))
         weighty1 = torch.zeros((1, 1, 2, 2))
         weighty2 = torch.zeros((1, 1, 2, 2))
-        nn.init.xavier_uniform_(weightx1)
-        nn.init.xavier_uniform_(weightx2)
-        nn.init.xavier_uniform_(weighty1)
-        nn.init.xavier_uniform_(weighty2)
-
+        weightx1[0][0][0][0] = -hx
+        weightx1[0][0][0][1] = hx
+        weightx2[0][0][1][0] = -hx
+        weightx2[0][0][1][1] = hx
+        weighty1[0][0][0][0] = -hy
+        weighty1[0][0][1][0] = hy
+        weighty2[0][0][0][1] = -hx
+        weighty2[0][0][1][1] = hx
         image_weight_x1 = weightx1.repeat(c, 1, 1, 1)
         image_weight_x2 = weightx2.repeat(c, 1, 1, 1)
         image_weight_y1 = weighty1.repeat(c, 1, 1, 1)
@@ -72,7 +75,6 @@ class DiffusionBlock(nn.Module):
 
 
         return image_weight_x1, image_weight_x2, image_weight_y1, image_weight_y2
-
 class WWWDiffusion(nn.Module):
 
     def __init__(self, tau, grads, **kwargs):

@@ -16,14 +16,14 @@ def remove_suffix(input_string, suffix):
 class FlyingThingsDataset(Dataset):
     def __init__(self, img_dir, density, transform=transforms.Compose([
         transforms.ToTensor(), transforms.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
-        transforms.CenterCrop(512)]),
+        transforms.CenterCrop(384)]),
                  mode='train',
                  type='IP'
                  ):
         self.mode = mode
         self.type = type
         self.transform = transform
-        self.flow_transform = transforms.CenterCrop(512)
+        self.flow_transform = transforms.CenterCrop(384)
         self.density = density
         path = '/share_chairilg/data/FlyingThings3d_full/out_json/optical_flow_files/optical_flow_train_finalpass.json' if self.mode == 'train' else '/share_chairilg/data/FlyingThings3d_full/out_json/optical_flow_files/optical_flow_test_finalpass.json'
         self.ds = Dataset(path).read()

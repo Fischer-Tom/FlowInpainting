@@ -16,7 +16,7 @@ class InpaintingNetwork(nn.Module):
         self.output_resolution = len(steps) - 1
         self.alpha = torch.tensor(alpha)
         self.learned_mode = learned_mode
-        self.blocks = nn.ModuleList([torch.jit.script(FSI_Block(s, disc, **kwargs)) for s in steps])
+        self.blocks = nn.ModuleList([FSI_Block(s, disc, **kwargs) for s in steps])
         self.disc = disc
         self.DM = DiffusivityModule(dim,self.learned_mode)
         self.g = PeronaMalikDiffusivity()
@@ -105,8 +105,8 @@ class FSI_Block(nn.Module):
         super().__init__()
         self.alphas = nn.ParameterList([nn.Parameter(torch.tensor((4 * i + 2) / (2 * i + 3)),
                                                      requires_grad=kwargs['grads']['alphas']) for i in range(timesteps)])
-        self.blocks = nn.ModuleList([DiffusionBlock(2,**kwargs) for _ in range(timesteps)]) if disc == "DB" else \
-            nn.ModuleList([WWWDiffusion(**kwargs) for _ in range(timesteps)])
+        self.blocks = nn.ModuleList([torch.jit.script(DiffusionBlock(2,**kwargs)) for _ in range(timesteps)]) if disc == "DB" else \
+            nn.ModuleList([torch.jit.script(WWWDiffusion(**kwargs)) for _ in range(timesteps)])
 
 
     def forward(self, u, f, c,Da,Db,Dc,alpha):

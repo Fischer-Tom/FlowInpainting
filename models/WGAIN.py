@@ -126,7 +126,9 @@ class Critic(nn.Module):
         self.x4 = nn.Conv2d(in_channels=256, out_channels=256, kernel_size=5, stride=2)
         self.x5 = nn.Conv2d(in_channels=256, out_channels=512, kernel_size=5, stride=2)
 
-        self.linear = nn.Linear(86528,1)
+        self.linear = nn.Linear(41472,1)
+        #self.linear = nn.Linear(86528,1)
+        #self.linear = nn.Linear(12800, 1)
 
     def forward(self,imp, M):
         x = torch.cat((imp,M),dim=1)
