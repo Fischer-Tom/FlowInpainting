@@ -16,8 +16,8 @@ class GANModelTrainer:
         self.train_iters = 0
         self.total_iters = train_iter
         self.gpu = gpu
-        self.optimizer_G = torch.optim.Adam(self.G.parameters(), lr=5e-6)
-        self.optimizer_C = torch.optim.Adam(self.C.parameters(), lr=5e-6)
+        self.optimizer_G = torch.optim.Adam(self.G.parameters(), lr=5e-5)
+        self.optimizer_C = torch.optim.Adam(self.C.parameters(), lr=5e-5)
 
 
     def get_optimizer(self, type, lr, weight_decay):
@@ -77,7 +77,7 @@ class GANModelTrainer:
             self.optimizer_G.zero_grad()
             fake_guess = self.C(fake,Mask)
             mae = torch.mean(torch.abs(fake-real))
-            loss_gen = -1*torch.mean(fake_guess) + mae
+            loss_gen = -0.005*torch.mean(fake_guess) + mae
             loss_gen.backward()
             self.optimizer_G.step()
 
@@ -90,6 +90,11 @@ class GANModelTrainer:
             self.train_iters += 1
             if self.train_iters > self.total_iters:
                 break
+            print(running_loss / iterations)
+            if iterations % 50 == 0:
+                Pred_vis = flow_vis.flow_to_color(fake[0].detach().cpu().permute(1, 2, 0).numpy())
+                plt.imshow(Pred_vis)
+                plt.show()
 
         Flow_vis = flow_vis.flow_to_color(real[0].detach().cpu().permute(1,2,0).numpy())
         Pred_vis = flow_vis.flow_to_color(fake[0].detach().cpu().permute(1, 2, 0).numpy())
