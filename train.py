@@ -12,7 +12,7 @@ from models.GANModelTrainer import GANModelTrainer
 parser = argparse.ArgumentParser(description="OFNet")
 
 # Data Loader Details
-parser.add_argument('--batch_size', type=int, default=4, help="Number of Image pairs per batch")
+parser.add_argument('--batch_size', type=int, default=16, help="Number of Image pairs per batch")
 parser.add_argument('--augment', type=bool, default=False, help="Use Data Augmentation")
 parser.add_argument('--seed', type=int, default=42, help="Seed for the Random Number Generator")
 parser.add_argument('--data_path', type=str, default='dataset/Sintel',

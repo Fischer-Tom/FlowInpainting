@@ -16,8 +16,8 @@ class GANModelTrainer:
         self.train_iters = 0
         self.total_iters = train_iter
         self.gpu = gpu
-        self.optimizer_G = torch.optim.Adam(self.G.parameters(), lr=5e-5)
-        self.optimizer_C = torch.optim.Adam(self.C.parameters(), lr=5e-5)
+        self.optimizer_G = torch.optim.Adam(self.G.parameters(), lr=5e-6)
+        self.optimizer_C = torch.optim.Adam(self.C.parameters(), lr=5e-6)
 
 
     def get_optimizer(self, type, lr, weight_decay):
@@ -77,7 +77,7 @@ class GANModelTrainer:
             self.optimizer_G.zero_grad()
             fake_guess = self.C(fake,Mask)
             mae = torch.mean(torch.abs(fake-real))
-            loss_gen = -0.0001*torch.mean(fake_guess) + mae
+            loss_gen = -1*torch.mean(fake_guess) + mae
             loss_gen.backward()
             self.optimizer_G.step()
 

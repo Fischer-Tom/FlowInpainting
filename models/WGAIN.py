@@ -126,17 +126,23 @@ class Critic(nn.Module):
         self.x4 = nn.Conv2d(in_channels=256, out_channels=256, kernel_size=5, stride=2)
         self.x5 = nn.Conv2d(in_channels=256, out_channels=512, kernel_size=5, stride=2)
 
+        self.bn1 = nn.BatchNorm2d(64)
+        self.bn2 = nn.BatchNorm2d(128)
+        self.bn3 = nn.BatchNorm2d(256)
+        self.bn4 = nn.BatchNorm2d(256)
+        self.bn5 = nn.BatchNorm2d(512)
+
         self.linear = nn.Linear(41472,1)
         #self.linear = nn.Linear(86528,1)
         #self.linear = nn.Linear(12800, 1)
 
     def forward(self,imp, M):
         x = torch.cat((imp,M),dim=1)
-        x = self.lReLU(self.x1(x))
-        x = self.lReLU(self.x2(x))
-        x = self.lReLU(self.x3(x))
-        x = self.lReLU(self.x4(x))
-        x = self.lReLU(self.x5(x))
+        x = self.bn1(self.lReLU(self.x1(x)))
+        x = self.bn2(self.lReLU(self.x2(x)))
+        x = self.bn3(self.lReLU(self.x3(x)))
+        x = self.bn4(self.lReLU(self.x4(x)))
+        x = self.bn5(self.lReLU(self.x5(x)))
 
         x = torch.flatten(x,start_dim=1)
         x = self.linear(x)
