@@ -90,11 +90,7 @@ class GANModelTrainer:
             self.train_iters += 1
             if self.train_iters > self.total_iters:
                 break
-            print(running_loss / iterations)
-            if iterations % 50 == 0:
-                Pred_vis = flow_vis.flow_to_color(fake[0].detach().cpu().permute(1, 2, 0).numpy())
-                plt.imshow(Pred_vis)
-                plt.show()
+
 
         Flow_vis = flow_vis.flow_to_color(real[0].detach().cpu().permute(1,2,0).numpy())
         Pred_vis = flow_vis.flow_to_color(fake[0].detach().cpu().permute(1, 2, 0).numpy())
