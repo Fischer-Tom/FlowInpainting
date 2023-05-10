@@ -138,11 +138,11 @@ class Critic(nn.Module):
 
     def forward(self,imp, M):
         x = torch.cat((imp,M),dim=1)
-        x = self.bn1(self.lReLU(self.x1(x)))
-        x = self.bn2(self.lReLU(self.x2(x)))
-        x = self.bn3(self.lReLU(self.x3(x)))
-        x = self.bn4(self.lReLU(self.x4(x)))
-        x = self.bn5(self.lReLU(self.x5(x)))
+        x = self.lReLU(self.bn1(self.x1(x)))
+        x = self.lReLU(self.bn2(self.x2(x)))
+        x = self.lReLU(self.bn3(self.x3(x)))
+        x = self.lReLU(self.bn4(self.x4(x)))
+        x = self.lReLU(self.bn5(self.x5(x)))
 
         x = torch.flatten(x,start_dim=1)
         x = self.linear(x)
