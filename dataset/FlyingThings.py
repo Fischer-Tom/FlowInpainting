@@ -25,7 +25,7 @@ class FlyingThingsDataset(Dataset):
         self.transform = transform
         self.flow_transform = transforms.CenterCrop(384)
         self.density = density
-        path = '/share_chairilg/data/FlyingThings3d_full/out_json/optical_flow_files/optical_flow_train_finalpass.json' if self.mode == 'train' else '/share_chairilg/data/FlyingThings3d/out_json/val_left_forward_flow.json'
+        path = '/share_chairilg/data/FlyingThings3d_full/out_json/optical_flow_files/optical_flow_train_finalpass_subset.json' if self.mode == 'train' else '/share_chairilg/data/FlyingThings3d_full/out_json/optical_flow_files/optical_flow_test_finalpass_subset.json'
         self.ds = Dataset(path).read()
 
     def __len__(self):
