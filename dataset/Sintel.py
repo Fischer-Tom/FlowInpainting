@@ -15,13 +15,13 @@ def remove_suffix(input_string, suffix):
 class SintelDataset(Dataset):
     def __init__(self, img_dir, density, transform=transforms.Compose([
         transforms.ToTensor(),transforms.Normalize(mean=(0.485,0.456,0.406), std=(0.229, 0.224, 0.225)),
-        transforms.CenterCrop(512)]),
+        transforms.CenterCrop(384)]),
                  mode = 'train',
                  type = 'IP'
 ):
         self.mode = mode
         self.transform = transform
-        self.flow_transform = transforms.CenterCrop(512)
+        self.flow_transform = transforms.CenterCrop(384)
         self.img0_list = []
         self.img1_list = []
         self.flow_list = []
