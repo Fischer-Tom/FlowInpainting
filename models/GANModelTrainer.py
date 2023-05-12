@@ -58,7 +58,7 @@ class GANModelTrainer:
 
             start.record()
             r = (1 - Mask) * torch.randn_like(Masked_Flow)
-            fake = self.G(I1, Mask, Masked_Flow, r)
+            fake = self.G(I1, Mask, Masked_Flow)
             # Query Model
             self.set_requires_grad(self.C,True)
             self.optimizer_C.zero_grad()
@@ -76,7 +76,7 @@ class GANModelTrainer:
             self.set_requires_grad(self.C,False)
             self.optimizer_G.zero_grad()
             fake_guess = self.C(fake,Mask)
-            mae = torch.mean(torch.abs(fake-real))
+            mae = EPE_Loss(fake,real)#torch.mean(torch.abs(fake-real))
             loss_gen = -0.005*torch.mean(fake_guess) + mae
             loss_gen.backward()
             self.optimizer_G.step()
@@ -90,7 +90,7 @@ class GANModelTrainer:
             self.train_iters += 1
             if self.train_iters > self.total_iters:
                 break
-
+            print(running_loss / iterations)
 
         Flow_vis = flow_vis.flow_to_color(real[0].detach().cpu().permute(1,2,0).numpy())
         Pred_vis = flow_vis.flow_to_color(fake[0].detach().cpu().permute(1, 2, 0).numpy())
@@ -124,7 +124,7 @@ class GANModelTrainer:
                 # Query Model
                 start.record()
 
-                predict_flow = self.G(I1, Mask, Masked_Flow,r)
+                predict_flow = self.G(I1, Mask, Masked_Flow)
                 batch_risk = EPE_Loss(predict_flow,Flow)
                 end.record()
                 torch.cuda.synchronize()

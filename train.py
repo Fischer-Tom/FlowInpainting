@@ -90,7 +90,10 @@ def main_worker(gpu, ngpus, args):
         if "Res_InpaintingFlowNetNet" in args.model:
             from models.Res_InpaintingFlowNet import Res_InpaintingFlowNet as model
         elif "InpaintingNet" in args.model:
-            from models.InpaintingNet import InpaintingNetwork as model
+            if args.model_mode == 'Single':
+                from models.InpaintingNet import InpaintingNetwork as model
+            else:
+                from models.GAN_InpaintingNet import GAN_InpaintingNetwork as model
         elif 'InpaintingFlowNet' in args.model:
             from models.InpaintingFlowNet import InpaintingFlowNet as model
         elif 'FlowNetS+' in args.model:
