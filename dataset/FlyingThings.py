@@ -33,23 +33,13 @@ class FlyingThingsDataset(Dataset):
 
     def __getitem__(self, idx):
         item = self.ds.__getitem__(idx)
-        if self.mode == 'train':
-            im0 = item['left0'].data()
-            im1 = item['left1'].data()
-            flow = item['left_forward'].data()
-            if self.transform:
-                im0 = self.transform(np.array(im0[:,:,:3]))
-                im1 = self.transform(np.array(im1[:,:,:3]))
-                flow = self.flow_transform(torch.Tensor(np.nan_to_num(flow[:,:,:2])).permute(2, 0, 1))
-            c, h, w = im1.shape
-            return im0, im1, (torch.FloatTensor(1, h, w).uniform_() > self.density).float(), flow
-        else:
-            im0 = item['image0'].data()
-            im1 = item['image1'].data()
-            flow = item['flow0'].data()
-            if self.transform:
-                im0 = self.transform(np.array(im0))
-                im1 = self.transform(np.array(im1))
-                flow = self.flow_transform(torch.Tensor(np.nan_to_num(flow)).permute(2, 0, 1))
-            c, h, w = im1.shape
-            return im0, im1, (torch.FloatTensor(1, h, w).uniform_() > self.density).float(), flow
+        im0 = item['left0'].data()
+        im1 = item['left1'].data()
+        flow = item['left_forward'].data()
+        if self.transform:
+            im0 = self.transform(np.array(im0[:,:,:3]))
+            im1 = self.transform(np.array(im1[:,:,:3]))
+            flow = self.flow_transform(torch.Tensor(np.nan_to_num(flow[:,:,:2])).permute(2, 0, 1))
+        c, h, w = im1.shape
+
+        return im0, im1, (torch.FloatTensor(1, h, w).uniform_() > self.density).float(), flow

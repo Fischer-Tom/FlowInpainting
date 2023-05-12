@@ -21,7 +21,7 @@ class InpaintingFlowNet(nn.Module):
         encoder_out = self.flow_encoder(stacked, image_features)
         out = self.decoder(encoder_out, image_features)
 
-        if self.train:
+        if self.training:
             out[0] = (1 - Mask) * out[0] + Mask * Masked_Flow
         else:
             out = (1 - Mask) * out + Mask * Masked_Flow
