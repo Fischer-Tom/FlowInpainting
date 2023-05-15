@@ -79,7 +79,7 @@ class FlowEncoder(nn.Module):
         self.conv3 = SimpleConv(dim * 2, dim * 4, 5, 2, 2)
         self.conv4 = SimpleConv(dim * 4, dim * 8, 3, 2, 1)
         self.conv5 = SimpleConv(dim * 8, dim * 8, 3, 2, 1)
-        self.conv6 = SimpleConv(dim * 8, dim * 16, 3, 2, 1)
+        self.conv6 = SimpleConv(dim * 8, dim * 8, 3, 2, 1)
 
         if 'encoder' in self.mode:
             if self.disc == 'resnet':
@@ -186,7 +186,7 @@ class Decoder(nn.Module):
         self.mode = diffusion
         self.disc = disc
         self.step = kwargs['step']
-        self.deconv5 = SimpleUpConv(dim*16, dim * 8, 1, 2, 0, 1)
+        self.deconv5 = SimpleUpConv(dim*8, dim * 8, 1, 2, 0, 1)
         self.deconv4 = SimpleUpConv(dim*20, dim * 8, 1, 2, 0, 1)
         self.deconv3 = SimpleUpConv(dim*20+2, dim * 8, 1, 2, 0, 1)
         self.deconv2 = SimpleUpConv(dim*16+2, dim * 8, 1, 2, 0, 1)
@@ -333,13 +333,14 @@ class FSI_Block(nn.Module):
     def __init__(self, flow_c,i_c,disc,alpha, **kwargs):
         super().__init__()
         step = kwargs['step']
+        self.disc = disc
         self.alpha = torch.tensor(alpha)
         self.learned_mode = kwargs['learned_mode']
         self.alphas = nn.ParameterList([nn.Parameter(torch.tensor((4 * i + 2) / (2 * i + 3)),
                                                      requires_grad=kwargs['grads']['alphas']) for i in range(step)])
         self.blocks = nn.ModuleList([DiffusionBlock(flow_c,**kwargs) for _ in range(step)]) if disc == "DB" else \
             nn.ModuleList([WWWDiffusion(**kwargs) for _ in range(step)])
-        self.tensor = DepthwiseSeparableConvolution(in_ch=flow_c + i_c, out_ch=self.learned_mode, ks=3)
+        self.tensor = DepthwiseSeparableConvolution(in_ch=flow_c + i_c, out_ch=self.learned_mode,disc=self.disc, ks=3)
 
 
     def forward(self, u, f):
@@ -356,12 +357,12 @@ class FSI_Block(nn.Module):
 
 class DepthwiseSeparableConvolution(nn.Module):
 
-    def __init__(self, in_ch, out_ch, ks):
+    def __init__(self, in_ch, out_ch,disc, ks):
         super().__init__()
 
         self.conv = nn.Conv2d(in_channels=in_ch, out_channels=out_ch, kernel_size=ks, padding='same', groups=1, bias=True)
-        self.zero_pad = nn.ZeroPad2d(1)
-        self.pad = nn.ReplicationPad2d(1)
+        self.zero_pad = nn.ZeroPad2d(1) if disc=='WWW' else nn.ZeroPad2d((1,0,1,0))
+        self.pad = nn.ReplicationPad2d(1) if disc=='WWW' else nn.ReplicationPad2d((1,0,1,0))
         self.diffusivity = PeronaMalikDiffusivity()
         self.out_mode = out_ch
 

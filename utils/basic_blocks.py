@@ -29,13 +29,13 @@ class DiffusionBlock(nn.Module):
         w1c = c * (1-alpha) / 2
         w2c = c * alpha / 2
 
-        w1a = w1a[:,:,:-1,:-1]
+        """        w1a = w1a[:,:,:-1,:-1]
         w2a = w2a[:,:,:-1,:-1]
         w1b = w1b[:,:,:-1,:-1]
         w2b = w2b[:,:,:-1,:-1]
         w1c = w1c[:,:,:-1,:-1]
         w2c = w2c[:,:,:-1,:-1]
-
+        """
         ux1 = F.conv2d(self.pad(u), self.grad_x1, groups = u.size(1))
         ux2 = F.conv2d(self.pad(u), self.grad_x2, groups = u.size(1))
         uy1 = F.conv2d(self.pad(u), self.grad_y1, groups = u.size(1))

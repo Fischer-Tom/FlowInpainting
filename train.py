@@ -58,7 +58,7 @@ parser.add_argument('--grads', nargs='+', type=bool, default=[False, False, Fals
                     help="Which parameters to learn in dict form")
 parser.add_argument('--lam', type=float, default=1., help="Diffusivity parameter")
 parser.add_argument('--steps', nargs='+', type=int, default=[5,15,30,45], help="How many steps per resolution")
-parser.add_argument('--step', type=int, default=1, help="How many steps per resolution")
+parser.add_argument('--step', type=int, default=5, help="How many steps per resolution")
 parser.add_argument('--disc', type=str, default="DB", help="Discretization")
 parser.add_argument('--learned_mode', type=int, default=5, help="How many parameters to learn")
 
@@ -130,7 +130,7 @@ def main_worker(gpu, ngpus, args):
             dataset = SintelDataset
             params = {'batch_size': 4,
                       'shuffle': True,
-                      'num_workers': 4}
+                      'num_workers': 8}
             # Datasets and Loaders
             val_dataset = dataset(args.data_path, args.mask, mode='test')
             train_dataset = dataset(args.data_path, args.mask, mode='train')
@@ -145,7 +145,7 @@ def main_worker(gpu, ngpus, args):
             sintel_dataset = SintelDataset
             params = {'batch_size': 4,
                       'shuffle': True,
-                      'num_workers': 4}
+                      'num_workers': 16}
             # Datasets and Loaders
             val_dataset = dataset(args.data_path, args.mask, mode='test', type=ds)
             sintel_val_dataset = sintel_dataset(args.data_path, args.mask, mode='test', type=ds)
