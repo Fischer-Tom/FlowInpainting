@@ -7,7 +7,6 @@ from imagelib.core import inverse_normalize
 import matplotlib.pyplot as plt
 class ModelTrainer:
 
-
     def __init__(self, net, optimizer, gpu, train_iter, **kwargs):
 
         self.net = net
@@ -16,11 +15,13 @@ class ModelTrainer:
         self.gpu = gpu
         self.optimizer = self.get_optimizer(optimizer, kwargs['lr'], kwargs['weight_decay'])
         self.scheduler = self.net.get_scheduler(self.optimizer)
+        self.scaler = torch.cuda.amp.GradScaler(enabled=True)
+
 
     def get_optimizer(self, type, lr, weight_decay):
 
         if type == "Adam":
-            return torch.optim.Adam(self.net.parameters(), lr = lr, weight_decay=weight_decay)
+            return torch.optim.Adam(self.net.parameters(), lr = lr,eps=1e-4, weight_decay=weight_decay)
         raise ValueError("Invalid Optimizer. Choices are: Adam")
 
 
@@ -37,7 +38,6 @@ class ModelTrainer:
 
     def train(self, loader):
         self.net.train()
-        self.net.half()
 
         running_loss = 0.0
         iterations = 0
@@ -45,24 +45,26 @@ class ModelTrainer:
         end = torch.cuda.Event(enable_timing=True)
         I1, Mask, Flow, predict_flow = None, None, None, None
         for i, sample in enumerate(loader):
-            sample = [samp.cuda(self.gpu).half() for samp in sample]
+            sample = [samp.cuda() for samp in sample]
 
             I1, I2 = sample[0:2]
             Mask = sample[2]
             Flow = sample[-1]
-            Masked_Flow = torch.zeros_like(Flow).cuda(self.gpu)
+            Masked_Flow = torch.zeros_like(Flow,device=I1.device)
             indices = torch.cat((Mask, Mask), 1) == 1.
             Masked_Flow[indices] = Flow[indices]
             # Time Iteration duration
             start.record()
             self.optimizer.zero_grad(set_to_none=True)
             # Query Model
-            predict_flow = self.net(I1, Mask, Masked_Flow)
-            batch_risk = self.net.get_loss(predict_flow, Flow)
+            with torch.autocast(device_type='cuda',dtype=torch.float16):
+                predict_flow = self.net(I1, Mask, Masked_Flow)
+                batch_risk = self.net.get_loss(predict_flow, Flow)
 
             # Update Weights and learning rate
-            batch_risk.backward()
-            self.optimizer.step()
+            self.scaler.scale(batch_risk).backward()
+            self.scaler.step(self.optimizer)
+            self.scaler.update()
             self.net.update_lr(self.scheduler, self.train_iters)
             with torch.no_grad():
                 self.net.constrain_weight()
@@ -76,12 +78,13 @@ class ModelTrainer:
                 break
             if not torch.is_tensor(predict_flow):
                 predict_flow = predict_flow[0]
-        Flow_vis = flow_vis.flow_to_color(Flow[0].detach().cpu().permute(1,2,0).numpy())
-        Pred_vis = flow_vis.flow_to_color(predict_flow[0].detach().cpu().permute(1, 2, 0).numpy())
-        I1_vis = inverse_normalize(I1[0].detach().cpu())
-        Masked_vis = flow_vis.flow_to_color(Masked_Flow[0].detach().cpu().permute(1, 2, 0).numpy())
-        Mask_vis = torch.cat((Mask[0],Mask[0],Mask[0]),dim=0).detach().cpu()
-        images = torch.stack((I1_vis,Mask_vis,torch.tensor(Flow_vis).permute(2,0,1),torch.tensor(Masked_vis).permute(2,0,1),torch.tensor(Pred_vis).permute(2,0,1)))
+            print(start.elapsed_time(end))
+            Flow_vis = flow_vis.flow_to_color(Flow[0].detach().cpu().permute(1,2,0).numpy())
+            Pred_vis = flow_vis.flow_to_color(predict_flow[0].detach().cpu().permute(1, 2, 0).numpy())
+            I1_vis = inverse_normalize(I1[0].to(torch.float32).cpu())
+            Masked_vis = flow_vis.flow_to_color(Masked_Flow[0].detach().cpu().permute(1, 2, 0).numpy())
+            Mask_vis = torch.cat((Mask[0],Mask[0],Mask[0]),dim=0).detach().cpu()
+            images = torch.stack((I1_vis,Mask_vis,torch.tensor(Flow_vis).permute(2,0,1),torch.tensor(Masked_vis).permute(2,0,1),torch.tensor(Pred_vis).permute(2,0,1)))
         return running_loss / iterations, start.elapsed_time(end), images
 
     def validate(self, loader):
@@ -98,7 +101,7 @@ class ModelTrainer:
                 I1, I2 = sample[0:2]
                 Mask = sample[2]
                 Flow = sample[-1]
-                Masked_Flow = torch.zeros_like(Flow).cuda(self.gpu)
+                Masked_Flow = torch.zeros_like(Flow,device=I1.device)
                 indices = torch.cat((Mask, Mask), 1) == 1.
                 Masked_Flow[indices] = Flow[indices]
                 # Query Model
