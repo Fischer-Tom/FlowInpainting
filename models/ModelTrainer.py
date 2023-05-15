@@ -57,7 +57,7 @@ class ModelTrainer:
             start.record()
             self.optimizer.zero_grad(set_to_none=True)
             # Query Model
-            with torch.autocast(device_type='cuda',dtype=torch.float16):
+            with torch.cuda.amp.autocast():
                 predict_flow = self.net(I1, Mask, Masked_Flow)
                 batch_risk = self.net.get_loss(predict_flow, Flow)
 
@@ -78,12 +78,13 @@ class ModelTrainer:
                 break
             if not torch.is_tensor(predict_flow):
                 predict_flow = predict_flow[0]
-            Flow_vis = flow_vis.flow_to_color(Flow[0].detach().cpu().permute(1,2,0).numpy())
-            Pred_vis = flow_vis.flow_to_color(torch.nan_to_num_(predict_flow[0]).detach().cpu().permute(1, 2, 0).numpy())
-            I1_vis = inverse_normalize(I1[0].to(torch.float32).cpu())
-            Masked_vis = flow_vis.flow_to_color(Masked_Flow[0].detach().cpu().permute(1, 2, 0).numpy())
-            Mask_vis = torch.cat((Mask[0],Mask[0],Mask[0]),dim=0).detach().cpu()
-            images = torch.stack((I1_vis,Mask_vis,torch.tensor(Flow_vis).permute(2,0,1),torch.tensor(Masked_vis).permute(2,0,1),torch.tensor(Pred_vis).permute(2,0,1)))
+            print(f"Loss: {running_loss / iterations}, Timing: {start.elapsed_time(end)}")
+        Flow_vis = flow_vis.flow_to_color(Flow[0].detach().cpu().permute(1,2,0).numpy())
+        Pred_vis = flow_vis.flow_to_color(torch.nan_to_num_(predict_flow[0]).detach().cpu().permute(1, 2, 0).numpy())
+        I1_vis = inverse_normalize(I1[0].to(torch.float32).cpu())
+        Masked_vis = flow_vis.flow_to_color(Masked_Flow[0].detach().cpu().permute(1, 2, 0).numpy())
+        Mask_vis = torch.cat((Mask[0],Mask[0],Mask[0]),dim=0).detach().cpu()
+        images = torch.stack((I1_vis,Mask_vis,torch.tensor(Flow_vis).permute(2,0,1),torch.tensor(Masked_vis).permute(2,0,1),torch.tensor(Pred_vis).permute(2,0,1)))
         return running_loss / iterations, start.elapsed_time(end), images
 
     def validate(self, loader):
