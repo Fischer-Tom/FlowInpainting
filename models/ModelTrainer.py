@@ -1,5 +1,6 @@
 from os.path import join
 import torch
+import numpy as np
 import torch.nn as nn
 import torch.optim
 import flow_vis
@@ -71,14 +72,14 @@ class ModelTrainer:
             end.record()
             #torch.cuda.synchronize()
             # Update running loss
-            running_loss += batch_risk.item()
-            iterations += 1
+            if not np.isnan(batch_risk.item()):
+                running_loss += batch_risk.item()
+                iterations += 1
             self.train_iters += 1
             if self.train_iters > self.total_iters:
                 break
             if not torch.is_tensor(predict_flow):
                 predict_flow = predict_flow[0]
-            print(f"Loss: {running_loss / iterations}, Timing: {start.elapsed_time(end)}")
         Flow_vis = flow_vis.flow_to_color(Flow[0].detach().cpu().permute(1,2,0).numpy())
         Pred_vis = flow_vis.flow_to_color(torch.nan_to_num_(predict_flow[0]).detach().cpu().permute(1, 2, 0).numpy())
         I1_vis = inverse_normalize(I1[0].to(torch.float32).cpu())
