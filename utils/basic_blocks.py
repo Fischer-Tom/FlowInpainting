@@ -19,16 +19,6 @@ class DiffusionBlock(nn.Module):
     def forward(self, u, a,b,c, alpha):
 
 
-        sign = torch.sign(b)
-        beta = (1. - 2. * alpha) * sign
-
-        w1a = a * (1-alpha) / 2
-        w2a = a * alpha / 2
-        w1b = b * (1-beta) / 4
-        w2b = b * (1+beta) / 4
-        w1c = c * (1-alpha) / 2
-        w2c = c * alpha / 2
-
         """        w1a = w1a[:,:,:-1,:-1]
         w2a = w2a[:,:,:-1,:-1]
         w1b = w1b[:,:,:-1,:-1]
@@ -41,12 +31,13 @@ class DiffusionBlock(nn.Module):
         uy1 = F.conv2d(self.pad(u), self.grad_y1, groups = u.size(1))
         uy2 = F.conv2d(self.pad(u), self.grad_y2, groups = u.size(1))
 
+        u1, u2, u3, u4 = Diff_Tensor(a,b,c,alpha,ux1,ux2,uy1,uy2)
 
-        uxx1 = F.conv2d(w1a*ux1+w2a*ux2+w1b*uy1+w2b*uy2, -self.grad_x1.flip(2).flip(3), groups=ux1.size(1))
-        uxx2 = F.conv2d(w2a*ux1+w1a*ux2+w2b*uy1+w1b*uy2, -self.grad_x2.flip(2).flip(3), groups=ux2.size(1))
+        uxx1 = F.conv2d(u1, -self.grad_x1.flip(2).flip(3), groups=ux1.size(1))
+        uxx2 = F.conv2d(u2, -self.grad_x2.flip(2).flip(3), groups=ux2.size(1))
 
-        uyy1 = F.conv2d(w1b*ux1 + w2b*ux2 + w1c*uy1 + w2c*uy2, -self.grad_y1.flip(2).flip(3), groups=uy1.size(1))
-        uyy2 = F.conv2d(w2b*ux1 + w1b*ux2 + w2c*uy1 + w1c*uy2, -self.grad_y2.flip(2).flip(3), groups=uy2.size(1))
+        uyy1 = F.conv2d(u3, -self.grad_y1.flip(2).flip(3), groups=uy1.size(1))
+        uyy2 = F.conv2d(u4, -self.grad_y2.flip(2).flip(3), groups=uy2.size(1))
 
 
         Au = (uxx1 + uxx2 + uyy1 + uyy2)
@@ -75,6 +66,25 @@ class DiffusionBlock(nn.Module):
 
 
         return image_weight_x1, image_weight_x2, image_weight_y1, image_weight_y2
+@torch.jit.script
+def Diff_Tensor(a,b,c,alpha,ux1,ux2,uy1,uy2):
+    sign = torch.sign(b)
+    beta = (1. - 2. * alpha) * sign
+
+    w1a = a * (1 - alpha) / 2
+    w2a = a * alpha / 2
+    w1b = b * (1 - beta) / 4
+    w2b = b * (1 + beta) / 4
+    w1c = c * (1 - alpha) / 2
+    w2c = c * alpha / 2
+
+    u1 = w1a*ux1+w2a*ux2+w1b*uy1+w2b*uy2
+    u2 = w2a*ux1+w1a*ux2+w2b*uy1+w1b*uy2
+    u3 = w1b*ux1 + w2b*ux2 + w1c*uy1 + w2c*uy2
+    u4 = w2b*ux1 + w1b*ux2 + w2c*uy1 + w1c*uy2
+
+    return u1, u2, u3, u4
+
 class WWWDiffusion(nn.Module):
 
     def __init__(self, tau, grads, **kwargs):
@@ -83,45 +93,45 @@ class WWWDiffusion(nn.Module):
         self.pad = nn.ReplicationPad2d(1)
 
     def forward(self, u, a, b, c,alpha):
-        Au = self.get_delta(u, a, b, c,alpha)
+        Au = get_delta(self.pad(u), a, b, c,alpha)
 
         u = (u + self.tau * Au)
 
         return u
 
-    def get_delta(self, u, a, b, c, alpha):
-        _, _, h, w = u.shape
-        h = h + 1
-        w = w + 1
-        u = self.pad(u)
+@torch.jit.script
+def get_delta(u, a, b, c, alpha):
+    _, _, h, w = u.shape
+    h = h - 1
+    w = w - 1
 
-        sign = torch.sign(b)
-        beta = (1. - 2. * alpha) * sign
-        delta = alpha * (a + c) + beta * b
-        wpo = 0.5 * (a[:, :, 1:w, 1:h] - delta[:, :, 1:w, 1:h] + a[:, :, 1:w, 0:h - 1] - delta[:, :, 1:w, 0:h - 1])
-        wmo = 0.5 * (
-                a[:, :, 0:w - 1, 1:h] - delta[:, :, 0:w - 1, 1:h] + a[:, :, 0:w - 1, 0:h - 1] - delta[:, :, 0:w - 1,
-                                                                                                0:h - 1])
-        wop = 0.5 * (c[:, :, 1:w, 1:h] - delta[:, :, 1:w, 1:h] + c[:, :, 0:w - 1, 1:h] - delta[:, :, 0:w - 1, 1:h])
-        wom = 0.5 * (
-                c[:, :, 1:w, 0:h - 1] - delta[:, :, 1:w, 0:h - 1] + c[:, :, 0:w - 1, 0:h - 1] - delta[:, :, 0:w - 1,
-                                                                                                0:h - 1])
-        wpp = 0.5 * (b[:, :, 1:w, 1:h] + delta[:, :, 1:w, 1:h])
-        wmm = 0.5 * (b[:, :, 0:w - 1, 0:h - 1] + delta[:, :, 0:w - 1, 0:h - 1])
-        wmp = 0.5 * (delta[:, :, 0:w - 1, 1:h] - b[:, :, 0:w - 1, 1:h])
-        wpm = 0.5 * (delta[:, :, 1:w, 0:h - 1] - b[:, :, 1:w, 0:h - 1])
-        woo = - wpo - wmo - wop - wom - wpp - wmm - wmp - wpm
-        Au = (woo * u[:, :, 1:w, 1:h]
-              + wpo * u[:, :, 2:, 1:h]
-              + wmo * u[:, :, 0:w - 1, 1:h]
-              + wop * u[:, :, 1:w, 2:]
-              + wom * u[:, :, 1:w, 0:h - 1]
-              + wpp * u[:, :, 2:, 2:]
-              + wmm * u[:, :, 0:w - 1, 0:h - 1]
-              + wpm * u[:, :, 2:, 0:h - 1]
-              + wmp * u[:, :, 0:w - 1, 2:])
+    sign = torch.sign(b)
+    beta = (1. - 2. * alpha) * sign
+    delta = alpha * (a + c) + beta * b
+    wpo = 0.5 * (a[:, :, 1:w, 1:h] - delta[:, :, 1:w, 1:h] + a[:, :, 1:w, 0:h - 1] - delta[:, :, 1:w, 0:h - 1])
+    wmo = 0.5 * (
+            a[:, :, 0:w - 1, 1:h] - delta[:, :, 0:w - 1, 1:h] + a[:, :, 0:w - 1, 0:h - 1] - delta[:, :, 0:w - 1,
+                                                                                            0:h - 1])
+    wop = 0.5 * (c[:, :, 1:w, 1:h] - delta[:, :, 1:w, 1:h] + c[:, :, 0:w - 1, 1:h] - delta[:, :, 0:w - 1, 1:h])
+    wom = 0.5 * (
+            c[:, :, 1:w, 0:h - 1] - delta[:, :, 1:w, 0:h - 1] + c[:, :, 0:w - 1, 0:h - 1] - delta[:, :, 0:w - 1,
+                                                                                            0:h - 1])
+    wpp = 0.5 * (b[:, :, 1:w, 1:h] + delta[:, :, 1:w, 1:h])
+    wmm = 0.5 * (b[:, :, 0:w - 1, 0:h - 1] + delta[:, :, 0:w - 1, 0:h - 1])
+    wmp = 0.5 * (delta[:, :, 0:w - 1, 1:h] - b[:, :, 0:w - 1, 1:h])
+    wpm = 0.5 * (delta[:, :, 1:w, 0:h - 1] - b[:, :, 1:w, 0:h - 1])
+    woo = - wpo - wmo - wop - wom - wpp - wmm - wmp - wpm
+    Au = (woo * u[:, :, 1:w, 1:h]
+          + wpo * u[:, :, 2:, 1:h]
+          + wmo * u[:, :, 0:w - 1, 1:h]
+          + wop * u[:, :, 1:w, 2:]
+          + wom * u[:, :, 1:w, 0:h - 1]
+          + wpp * u[:, :, 2:, 2:]
+          + wmm * u[:, :, 0:w - 1, 0:h - 1]
+          + wpm * u[:, :, 2:, 0:h - 1]
+          + wmp * u[:, :, 0:w - 1, 2:])
 
-        return Au
+    return Au
 class PeronaMalikDiffusivity(nn.Module):
     def __init__(self, contrast = 1.):
         super().__init__()
