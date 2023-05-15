@@ -58,7 +58,7 @@ class GANModelTrainer:
 
             start.record()
             r = (1 - Mask) * torch.randn_like(Masked_Flow)
-            fake = self.G(I1, Mask, Masked_Flow)
+            fake = self.G(I1, Mask, Masked_Flow,r)
             # Query Model
             self.set_requires_grad(self.C,True)
             self.optimizer_C.zero_grad()

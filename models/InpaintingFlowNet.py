@@ -89,11 +89,11 @@ class FlowEncoder(nn.Module):
                 self.dif3 = nn.Sequential(End_ResidualBlock(dim*(8+4),dim*8,3,1,1),*[ResidualBlock(dim*8,dim*8,3,1,1) for _ in range(self.step)])#FSI_Block(dim * 8, dim*4, **kwargs)
                 self.dif4 = nn.Sequential(End_ResidualBlock(dim*(8+4),dim*8,3,1,1),*[ResidualBlock(dim*8,dim*8,3,1,1) for _ in range(self.step)])#FSI_Block(dim*8, dim*4, **kwargs)
             else:
-                self.dif0 = nn.ModuleList([torch.jit.script(FSI_Block(dim, dim,disc, **kwargs))])
-                self.dif1 = nn.ModuleList([torch.jit.script(FSI_Block(dim*2, dim*2,disc, **kwargs))])
-                self.dif2 = nn.ModuleList([torch.jit.script(FSI_Block(dim*4, dim*4,disc, **kwargs))])
-                self.dif3 = nn.ModuleList([torch.jit.script(FSI_Block(dim * 8, dim*4,disc, **kwargs))])
-                self.dif4 = nn.ModuleList([torch.jit.script(FSI_Block(dim*8, dim*4,disc, **kwargs))])
+                self.dif0 = nn.ModuleList([FSI_Block(dim, dim,disc, **kwargs)])
+                self.dif1 = nn.ModuleList([FSI_Block(dim*2, dim*2,disc, **kwargs)])
+                self.dif2 = nn.ModuleList([FSI_Block(dim*4, dim*4,disc, **kwargs)])
+                self.dif3 = nn.ModuleList([FSI_Block(dim * 8, dim*4,disc, **kwargs)])
+                self.dif4 = nn.ModuleList([FSI_Block(dim*8, dim*4,disc, **kwargs)])
 
     def forward(self, x, image_features):
         [i0, i1, i2, i3, i4] = image_features
@@ -208,11 +208,11 @@ class Decoder(nn.Module):
                 self.dif1 = nn.Sequential(End_ResidualBlock(dim*10,dim*8,3,1,1),*[ResidualBlock(dim * 8, dim*8, 3, 1, 1) for _ in range(self.step)])  # torch.jit.script(FSI_Block(dim * 8, dim*4, **kwargs)
                 self.dif0 = nn.Sequential(End_ResidualBlock(dim*5,dim*4,3,1,1),*[ResidualBlock(dim * 4, dim*4, 3, 1, 1) for _ in range(self.step)])  # torch.jit.script(FSI_Block(dim*8, dim*4, **kwargs)
             else:
-                self.dif4 = nn.ModuleList([torch.jit.script(FSI_Block(dim*8, dim*4,disc, **kwargs))])
-                self.dif3 = nn.ModuleList([torch.jit.script(FSI_Block(dim*8, dim*4,disc, **kwargs))])
-                self.dif2 = nn.ModuleList([torch.jit.script(FSI_Block(dim*8, dim*4,disc, **kwargs))])
-                self.dif1 = nn.ModuleList([torch.jit.script(FSI_Block(dim*8, dim*2,disc, **kwargs))])
-                self.dif0 = nn.ModuleList([torch.jit.script(FSI_Block(dim*4, dim,disc, **kwargs))])
+                self.dif4 = nn.ModuleList([FSI_Block(dim*8, dim*4,disc, **kwargs)])
+                self.dif3 = nn.ModuleList([FSI_Block(dim*8, dim*4,disc, **kwargs)])
+                self.dif2 = nn.ModuleList([FSI_Block(dim*8, dim*4,disc, **kwargs)])
+                self.dif1 = nn.ModuleList([FSI_Block(dim*8, dim*2,disc, **kwargs)])
+                self.dif0 = nn.ModuleList([FSI_Block(dim*4, dim,disc, **kwargs)])
 
 
         self.upsample2 = nn.UpsamplingBilinear2d(scale_factor=2)

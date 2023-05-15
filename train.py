@@ -143,9 +143,10 @@ def main_worker(gpu, ngpus, args):
             from torchvision import transforms
             dataset = FlyingThingsDataset
             sintel_dataset = SintelDataset
-            params = {'batch_size': 4,
+            params = {'batch_size': 2,
                       'shuffle': True,
-                      'num_workers': 16}
+                      'num_workers': 16,
+                      'pin_memory': True}
             # Datasets and Loaders
             val_dataset = dataset(args.data_path, args.mask, mode='test', type=ds)
             sintel_val_dataset = sintel_dataset(args.data_path, args.mask, mode='test', type=ds)
