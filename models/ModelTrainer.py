@@ -92,7 +92,7 @@ class ModelTrainer:
             start = torch.cuda.Event(enable_timing=True)
             end = torch.cuda.Event(enable_timing=True)
             for i, sample in enumerate(loader):
-                sample = [samp.cuda(self.gpu).half() for samp in sample]
+                sample = [samp.cuda(self.gpu) for samp in sample]
 
                 I1, I2 = sample[0:2]
                 Mask = sample[2]
