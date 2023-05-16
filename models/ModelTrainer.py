@@ -5,7 +5,6 @@ import torch.nn as nn
 import torch.optim
 import flow_vis
 from imagelib.core import inverse_normalize
-import matplotlib.pyplot as plt
 class ModelTrainer:
 
     def __init__(self, net, optimizer, gpu, train_iter, **kwargs):
@@ -16,13 +15,12 @@ class ModelTrainer:
         self.gpu = gpu
         self.optimizer = self.get_optimizer(optimizer, kwargs['lr'], kwargs['weight_decay'])
         self.scheduler = self.net.get_scheduler(self.optimizer)
-        self.scaler = torch.cuda.amp.GradScaler(enabled=True)
 
 
     def get_optimizer(self, type, lr, weight_decay):
 
         if type == "Adam":
-            return torch.optim.Adam(self.net.parameters(), lr = lr,eps=1e-4, weight_decay=weight_decay)
+            return torch.optim.Adam(self.net.parameters(), lr = lr, weight_decay=weight_decay)
         raise ValueError("Invalid Optimizer. Choices are: Adam")
 
 
@@ -58,31 +56,28 @@ class ModelTrainer:
             start.record()
             self.optimizer.zero_grad(set_to_none=True)
             # Query Model
-            with torch.cuda.amp.autocast():
-                predict_flow = self.net(I1, Mask, Masked_Flow)
-                batch_risk = self.net.get_loss(predict_flow, Flow)
+            predict_flow = self.net(I1, Mask, Masked_Flow)
+            batch_risk = self.net.get_loss(predict_flow, Flow)
 
             # Update Weights and learning rate
-            self.scaler.scale(batch_risk).backward()
-            self.scaler.step(self.optimizer)
-            self.scaler.update()
+            batch_risk.backward()
+            self.optimizer.step()
             self.net.update_lr(self.scheduler, self.train_iters)
             with torch.no_grad():
                 self.net.constrain_weight()
             end.record()
             #torch.cuda.synchronize()
             # Update running loss
-            if not np.isnan(batch_risk.item()):
-                running_loss += batch_risk.item()
-                iterations += 1
+            running_loss += batch_risk.item()
+            iterations += 1
             self.train_iters += 1
             if self.train_iters > self.total_iters:
                 break
             if not torch.is_tensor(predict_flow):
                 predict_flow = predict_flow[0]
         Flow_vis = flow_vis.flow_to_color(Flow[0].detach().cpu().permute(1,2,0).numpy())
-        Pred_vis = flow_vis.flow_to_color(torch.nan_to_num_(predict_flow[0]).detach().cpu().permute(1, 2, 0).numpy())
-        I1_vis = inverse_normalize(I1[0].to(torch.float32).cpu())
+        Pred_vis = flow_vis.flow_to_color(predict_flow[0].detach().cpu().permute(1, 2, 0).numpy())
+        I1_vis = inverse_normalize(I1[0].cpu())
         Masked_vis = flow_vis.flow_to_color(Masked_Flow[0].detach().cpu().permute(1, 2, 0).numpy())
         Mask_vis = torch.cat((Mask[0],Mask[0],Mask[0]),dim=0).detach().cpu()
         images = torch.stack((I1_vis,Mask_vis,torch.tensor(Flow_vis).permute(2,0,1),torch.tensor(Masked_vis).permute(2,0,1),torch.tensor(Pred_vis).permute(2,0,1)))
