@@ -51,7 +51,7 @@ parser.add_argument('--mask', type=float, default=0.95, help="Mask Density for S
 
 # Diffusion arguments
 parser.add_argument('--tau', type=float, default=0.41, help='timestep size')
-parser.add_argument('--diffusion_position', type=str, default='encoderdecoder',
+parser.add_argument('--diffusion_position', type=str, default='decoder',
                     help='Which diffusion type. Supports: encoder, decoder, none')
 parser.add_argument('--alpha', type=float, default=0.41, help="Free parameter for the WWW stencil")
 parser.add_argument('--grads', nargs='+', type=bool, default=[False, False, False, False, False, True],
@@ -143,7 +143,7 @@ def main_worker(gpu, ngpus, args):
             from torchvision import transforms
             dataset = FlyingThingsDataset
             sintel_dataset = SintelDataset
-            params = {'batch_size': 2,
+            params = {'batch_size': 4,
                       'shuffle': True,
                       'num_workers': 16,
                       'pin_memory': True}

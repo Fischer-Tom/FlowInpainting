@@ -184,3 +184,54 @@ class SimpleUpConv(nn.Module):
         x = self.act(x)
         return x
 
+class DiffusivityModule(nn.Module):
+
+    def __init__(self, dim, learned_mode):
+        super().__init__()
+        self.conv0 = SimpleConv(3, dim, 3, 1, 1)
+        self.conv1 = SimpleConv(dim, dim, 3, 2, 1)
+        self.conv1_1 = SimpleConv(dim, dim, 3, 1, 1)
+        self.conv2 = SimpleConv(dim, dim * 2, 3, 2, 1)
+        self.conv2_1 = SimpleConv(dim*2, dim * 2, 3, 1, 1)
+        self.conv3 = SimpleConv(dim * 2, dim * 4, 3, 2, 1)
+        self.conv3_1 = SimpleConv(dim * 4, dim * 4, 3, 1, 1)
+        self.conv4 = SimpleConv(dim * 4, dim * 8, 3, 2, 1)
+
+        self.deconv4 = SimpleUpConv(dim*8, dim * 4, 1, 2, 0, 1)
+        self.deconv3 = SimpleUpConv(dim * 4 + dim * 4, dim * 4, 1, 2, 0, 1)
+        self.deconv2 = SimpleUpConv(dim * 4 + dim * 2, dim * 2, 1, 2, 0, 1)
+        self.deconv1 = SimpleUpConv(dim * 2 + dim*1, dim, 1, 2, 0, 1)
+
+        self.DT0 = nn.Conv2d(in_channels=dim+dim,out_channels=learned_mode,kernel_size=3,stride=1,padding=1)
+        self.DT1 = nn.Conv2d(in_channels=dim*2+dim,out_channels=learned_mode,kernel_size=3,stride=1,padding=1)
+        self.DT2 = nn.Conv2d(in_channels=dim*4+dim*2,out_channels=learned_mode,kernel_size=3,stride=1,padding=1)
+        self.DT3 = nn.Conv2d(in_channels=dim*4+dim*4,out_channels=learned_mode,kernel_size=3,stride=1,padding=1)
+
+
+        self.relu = nn.ReLU()
+
+    def forward(self, I):
+        b, _, w, h = I.shape
+        x0 = self.conv0(I)
+        x1 = self.conv1_1(self.conv1(x0))
+        x2 = self.conv2_1(self.conv2(x1))
+        x3 = self.conv3_1(self.conv3(x2))
+        x4 = self.conv4(x3)
+
+        x3 = torch.cat((self.deconv4(x4), x3), dim=1)
+        x2 = torch.cat((self.deconv3(x3), x2), dim=1)
+        x1 = torch.cat((self.deconv2(x2), x1 ), dim=1)
+        x0 = torch.cat((self.deconv1(x1), x0 ), dim=1)
+
+        x3 = self.DT3(x3)
+        x2 = self.DT2(x2)
+        x1 = self.DT1(x1)
+        x0 = self.DT0(x0)
+
+
+
+
+        return [x3,x2,x1,x0]
+
+
+
