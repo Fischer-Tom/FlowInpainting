@@ -10,7 +10,7 @@ class InpaintingFlowNet(nn.Module):
         super().__init__()
         self.disc = disc
         self.flow_encoder = FlowEncoder(diffusion_position,disc, dim=dim, **kwargs)
-        self.image_encoder = DiffusivityModule(dim=dim,learned_mode=kwargs['learned_mode'])
+        self.image_encoder = DiffusivityModule(dim=44,learned_mode=kwargs['learned_mode'])
         self.decoder = Decoder(diffusion_position,disc, dim, **kwargs)
         with torch.no_grad():
             self.constrain_weight()
@@ -214,8 +214,8 @@ class Decoder(nn.Module):
                 #self.dif4 = nn.ModuleList([FSI_Block(dim*8, dim*4,disc, **kwargs)])
                 self.dif3 = nn.ModuleList([FSI_Block(dim*8, dim*4,disc, **kwargs)])
                 self.dif2 = nn.ModuleList([FSI_Block(dim*8, dim*4,disc, **kwargs)])
-                self.dif1 = nn.ModuleList([FSI_Block(dim*8, dim*2,disc, **kwargs)])
-                self.dif0 = nn.ModuleList([FSI_Block(dim*4, dim,disc, **kwargs)])
+                self.dif1 = nn.ModuleList([FSI_Block(dim*4, dim*2,disc, **kwargs)])
+                self.dif0 = nn.ModuleList([FSI_Block(2, dim,disc, **kwargs)])
 
 
         self.upsample2 = nn.UpsamplingBilinear2d(scale_factor=2)
@@ -260,9 +260,9 @@ class Decoder(nn.Module):
         if 'decoder' in self.mode:
             if self.disc == 'resnet':
                 xin = torch.cat((conv,i3),dim=1)
-                conv = self.dif2(xin)
+                conv = self.dif3(xin)
             else:
-                for block in self.dif2:
+                for block in self.dif3:
                     conv = block(conv,i3)
 
 
@@ -274,9 +274,9 @@ class Decoder(nn.Module):
         if 'decoder' in self.mode:
             if self.disc == 'resnet':
                 xin = torch.cat((conv, i2), dim=1)
-                conv = self.dif1(xin)
+                conv = self.dif2(xin)
             else:
-                for block in self.dif1:
+                for block in self.dif2:
                     conv = block(conv, i2)
 
 
@@ -287,9 +287,9 @@ class Decoder(nn.Module):
         if 'decoder' in self.mode:
             if self.disc == 'resnet':
                 xin = torch.cat((conv, i1), dim=1)
-                conv = self.dif0(xin)
+                conv = self.dif1(xin)
             else:
-                for block in self.dif0:
+                for block in self.dif1:
                     conv = block(conv, i1)
 
 
@@ -348,8 +348,8 @@ class FSI_Block(nn.Module):
         self.disc = disc
         self.alpha = torch.tensor(alpha)
         self.learned_mode = kwargs['learned_mode']
-        self.zero_pad = nn.ZeroPad2d(1)
-        self.pad = nn.ReplicationPad2d(1)
+        self.zero_pad = nn.ZeroPad2d(1) if self.learned_mode == 'WWW' else nn.ZeroPad2d((1,0,1,0))
+        self.pad = nn.ReplicationPad2d(1) if self.learned_mode == 'WWW' else nn.ReplicationPad2d((1,0,1,0))
         self.alphas = nn.ParameterList([nn.Parameter(torch.tensor((4 * i + 2) / (2 * i + 3)),
                                                      requires_grad=kwargs['grads']['alphas']) for i in range(step)])
         self.blocks = nn.ModuleList([DiffusionBlock(flow_c,**kwargs) for _ in range(step)]) if disc == "DB" else \
