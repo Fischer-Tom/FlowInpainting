@@ -21,15 +21,13 @@ class InpaintingFlowNet(nn.Module):
         encoder_out = self.flow_encoder(stacked, image_features)
         out = self.decoder(encoder_out, image_features)
 
-        if self.training:
-            out[0] = (1 - Mask) * out[0] + Mask * Masked_Flow
-        else:
-            out = (1 - Mask) * out + Mask * Masked_Flow
+
+        out = (1 - Mask) * out + Mask * Masked_Flow
         return out
 
     def get_loss(self, pred, gt):
-        if self.training:
-            return MultiScale_EPE_Loss(pred, gt)
+        #if self.training:
+        #    return MultiScale_EPE_Loss(pred, gt)
         return EPE_Loss(pred, gt)
 
     def get_scheduler(self, optimizer):
@@ -79,7 +77,6 @@ class FlowEncoder(nn.Module):
         self.conv3 = SimpleConv(dim * 2, dim * 4, 3, 2, 1)
         self.conv4 = SimpleConv(dim * 4, dim * 8, 3, 2, 1)
         self.conv5 = SimpleConv(dim * 8, dim * 8, 3, 2, 1)
-        self.conv6 = SimpleConv(dim * 8, dim * 8, 3, 2, 1)
 
         if 'encoder' in self.mode:
             if self.disc == 'resnet':
@@ -145,18 +142,8 @@ class FlowEncoder(nn.Module):
 
         x4 = self.conv5(x3)
 
-        if 'encoder' in self.mode:
-            if self.disc == 'resnet':
-                xin = torch.cat((x4,i4),dim=1)
-                x4 = self.dif4(xin)
-            else:
-                for block in self.dif4:
-                    x4 = block(x4,i4)
 
-
-
-        x5 = self.conv6(x4)
-        return [x0, x1, x2, x3, x4, x5]
+        return [x0, x1, x2, x3, x4]
 
 class ImageEncoder(nn.Module):
 
@@ -188,20 +175,15 @@ class Decoder(nn.Module):
         super().__init__()
         self.mode = diffusion
         self.disc = disc
-        self.step = kwargs['step']
-        self.deconv5 = SimpleUpConv(dim*8, dim * 8, 1, 2, 0, 1)
-        self.deconv4 = SimpleUpConv(dim*16, dim * 8, 1, 2, 0, 1)
-        self.deconv3 = SimpleUpConv(dim*16+2, dim * 8, 1, 2, 0, 1)
-        self.deconv2 = SimpleUpConv(dim*12+5+2, dim * 8, 1, 2, 0, 1)
-        self.deconv1 = SimpleUpConv(dim*10+5+2, dim * 4, 1, 2, 0, 1)
-        self.deconv0 = SimpleUpConv(dim*5+5+2, dim * 4, 1, 2, 0, 1)
+        self.steps = kwargs["steps"]
+        self.deconv4 = SimpleUpConv(dim*8, dim * 8, 1, 2, 0, 1)
+        self.deconv3 = SimpleUpConv(dim*16, dim * 8, 1, 2, 0, 1)
+        self.deconv2 = SimpleUpConv(dim*12+5, dim * 8, 1, 2, 0, 1)
+        self.deconv1 = SimpleUpConv(dim*10+5, dim * 4, 1, 2, 0, 1)
+        self.deconv0 = SimpleUpConv(dim*5+5, dim * 4, 1, 2, 0, 1)
 
-        self.flow4 = nn.Conv2d(dim*16, 2, 5, 1, 2, bias=True)
-        self.flow3 = nn.Conv2d(dim*16 + 2, 2, 5, 1, 2, bias=True)
-        self.flow2 = nn.Conv2d(dim*12+5 + 2, 2, 5, 1, 2, bias=True)
-        self.flow1 = nn.Conv2d(dim*10+5 + 2, 2, 5, 1, 2, bias=True)
-        self.flow0 = nn.Conv2d(dim*5 + 5 + 2, 2, 5, 1, 2, bias=True)
-        self.out   = nn.Conv2d(dim*4+2, 2, 5, 1, 2, bias=True)
+
+        self.out   = nn.Conv2d(dim*4, 2, 5, 1, 2, bias=True)
 
         if 'decoder' in self.mode:
             if self.disc == 'resnet':
@@ -212,34 +194,22 @@ class Decoder(nn.Module):
                 self.dif0 = nn.Sequential(End_ResidualBlock(dim*5,dim*4,3,1,1),*[ResidualBlock(dim * 4, dim*4, 3, 1, 1) for _ in range(self.step)])  # torch.jit.script(FSI_Block(dim*8, dim*4, **kwargs)
             else:
                 #self.dif4 = nn.ModuleList([FSI_Block(dim*8, dim*4,disc, **kwargs)])
+                kwargs['step'] = self.steps[0]
                 self.dif3 = nn.ModuleList([FSI_Block(dim*8, dim*4,disc, **kwargs)])
+                kwargs['step'] = self.steps[1]
                 self.dif2 = nn.ModuleList([FSI_Block(dim*8, dim*4,disc, **kwargs)])
+                kwargs['step'] = self.steps[2]
                 self.dif1 = nn.ModuleList([FSI_Block(dim*4, dim*2,disc, **kwargs)])
+                kwargs['step'] = self.steps[3]
                 self.dif0 = nn.ModuleList([FSI_Block(2, dim,disc, **kwargs)])
 
 
         self.upsample2 = nn.UpsamplingBilinear2d(scale_factor=2)
 
     def forward(self, flow_features, image_features):
-        [x0, x1, x2, x3, x4, x] = flow_features
+        [x0, x1, x2, x3, x] = flow_features
         [i3,i2, i1, i0] = image_features
 
-
-        conv = self.deconv5(x)
-        """
-        if 'decoder' in self.mode:
-            if self.disc == 'resnet':
-                xin = torch.cat((conv,i4),dim=1)
-                conv = self.dif4(xin)
-            else:
-                for block in self.dif4:
-                    conv = block(conv,i4)
-
-        """
-
-
-        x = torch.cat((conv, x4), dim=1)
-        flow4 = self.flow4(x)
 
         conv = self.deconv4(x)
         """
@@ -253,8 +223,7 @@ class Decoder(nn.Module):
 
         """
 
-        x = torch.cat((conv, x3, self.upsample2(flow4)), dim=1)
-        flow3 = self.flow3(x)
+        x = torch.cat((conv, x3), dim=1)
 
         conv = self.deconv3(x)
         if 'decoder' in self.mode:
@@ -267,8 +236,7 @@ class Decoder(nn.Module):
 
 
 
-        x = torch.cat((conv, i3, x2, self.upsample2(flow3)), dim=1)
-        flow2 = self.flow2(x)
+        x = torch.cat((conv, i3, x2), dim=1)
 
         conv = self.deconv2(x)
         if 'decoder' in self.mode:
@@ -280,8 +248,7 @@ class Decoder(nn.Module):
                     conv = block(conv, i2)
 
 
-        x = torch.cat((conv, i2, x1, self.upsample2(flow2)), dim=1)
-        flow1 = self.flow1(x)
+        x = torch.cat((conv, i2, x1), dim=1)
 
         conv = self.deconv1(x)
         if 'decoder' in self.mode:
@@ -294,10 +261,9 @@ class Decoder(nn.Module):
 
 
 
-        x = torch.cat((conv, i1, x0, self.upsample2(flow1)), dim=1)
-        flow0 = self.flow0(x)
+        x = torch.cat((conv, i1, x0), dim=1)
 
-        x = torch.cat((self.deconv0(x), self.upsample2(flow0)), dim=1)
+        x = self.deconv0(x)
 
         conv = self.out(x)
         if 'decoder' in self.mode:
@@ -307,8 +273,7 @@ class Decoder(nn.Module):
             else:
                 for block in self.dif0:
                     out = block(conv, i0)
-        if self.training:
-            return [out, flow0, flow1, flow2, flow3, flow4]
+
         return out
 
 class SimpleConv(nn.Module):
