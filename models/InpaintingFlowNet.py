@@ -9,20 +9,28 @@ class InpaintingFlowNet(nn.Module):
     def __init__(self, diffusion_position, disc,dim=64, **kwargs):
         super().__init__()
         self.disc = disc
-        self.flow_encoder = FlowEncoder(diffusion_position,disc, dim=dim, **kwargs)
+        self.flow_encoder = FlowEncoder(diffusion_position,disc, dim=dim,in_ch=2, **kwargs)
         self.image_encoder = DiffusivityModule(dim=44,learned_mode=kwargs['learned_mode'])
         self.decoder = Decoder(diffusion_position,disc, dim, **kwargs)
+        self.mask_down1 = nn.Conv2d(1,1,3,2,1)
+        self.mask_down2 = nn.Conv2d(1, 1, 3, 2, 1)
+        self.mask_down3 = nn.Conv2d(1, 1, 3, 2, 1)
+        self.sig = nn.Sigmoid()
         with torch.no_grad():
             self.constrain_weight()
 
     def forward(self, I1, Mask, Masked_Flow):
-        stacked = torch.cat((Mask, Masked_Flow), 1)
+
         image_features = self.image_encoder(I1)
-        encoder_out = self.flow_encoder(stacked, image_features)
-        out = self.decoder(encoder_out, image_features)
+        encoder_out = self.flow_encoder(Masked_Flow, image_features)
+
+        dM1 = self.sig(self.mask_down1(Mask))
+        dM2 = self.sig(self.mask_down2(dM1))
+        dM3 = self.sig(self.mask_down3(dM2))
+
+        out = self.decoder(encoder_out, image_features,[Mask,dM1,dM2,dM3])
 
 
-        out = (1 - Mask) * out + Mask * Masked_Flow
         return out
 
     def get_loss(self, pred, gt):
@@ -206,10 +214,10 @@ class Decoder(nn.Module):
 
         self.upsample2 = nn.UpsamplingBilinear2d(scale_factor=2)
 
-    def forward(self, flow_features, image_features):
+    def forward(self, flow_features, image_features,masks):
         [x0, x1, x2, x3, x] = flow_features
         [i3,i2, i1, i0] = image_features
-
+        [dM0, dM1, dM2, dM3] = masks
 
         conv = self.deconv4(x)
         """
@@ -232,7 +240,7 @@ class Decoder(nn.Module):
                 conv = self.dif3(xin)
             else:
                 for block in self.dif3:
-                    conv = block(conv,i3)
+                    conv = block(conv,i3,dM3)
 
 
 
@@ -245,7 +253,7 @@ class Decoder(nn.Module):
                 conv = self.dif2(xin)
             else:
                 for block in self.dif2:
-                    conv = block(conv, i2)
+                    conv = block(conv, i2,dM2)
 
 
         x = torch.cat((conv, i2, x1), dim=1)
@@ -257,7 +265,7 @@ class Decoder(nn.Module):
                 conv = self.dif1(xin)
             else:
                 for block in self.dif1:
-                    conv = block(conv, i1)
+                    conv = block(conv, i1,dM1)
 
 
 
@@ -272,7 +280,7 @@ class Decoder(nn.Module):
                 out = self.dif0(xin)
             else:
                 for block in self.dif0:
-                    out = block(conv, i0)
+                    out = block(conv, i0,dM0)
 
         return out
 
@@ -322,14 +330,15 @@ class FSI_Block(nn.Module):
         self.g = PeronaMalikDiffusivity()
 
 
-    def forward(self, u, f):
-        D_a,D_b,D_c, alpha = self.get_DiffusionTensor(f)
+    def forward(self, u, D,c):
+        D_a,D_b,D_c, alpha = self.get_DiffusionTensor(D)
         u_prev = u
+        f = u
         for a, block in zip(self.alphas, self.blocks):
-            u_new = a * block(u, D_a,D_b,D_c,alpha) + (1 - a) * u_prev
+            diffused = a * block(u, D_a, D_b, D_c,alpha) + (1 - a) * u_prev
+            u_new = (1. - c) * diffused + c * f
             u_prev = u
             u = u_new
-
         return u
     def get_DiffusionTensor(self, x):
         V = F.normalize(x[:, 0:2, :, :], dim=1, p=2.)
