@@ -50,10 +50,9 @@ class GANModelTrainer:
 
             I1, I2 = sample[0:2]
             Mask = sample[2]
-            real= sample[-1]
-            Masked_Flow = torch.zeros_like(real).cuda(self.gpu)
-            indices = torch.cat((Mask, Mask),1) == 1.
-            Masked_Flow[indices] = real[indices]
+            real= sample[3]
+            Masked_Flow = sample[-1]
+
             # Time Iteration duration
 
             start.record()
@@ -90,7 +89,7 @@ class GANModelTrainer:
             self.train_iters += 1
             if self.train_iters > self.total_iters:
                 break
-            print(running_loss / iterations)
+            #print(running_loss / iterations)
 
         Flow_vis = flow_vis.flow_to_color(real[0].detach().cpu().permute(1,2,0).numpy())
         Pred_vis = flow_vis.flow_to_color(fake[0].detach().cpu().permute(1, 2, 0).numpy())
@@ -115,16 +114,14 @@ class GANModelTrainer:
 
                 I1, I2 = sample[0:2]
                 Mask = sample[2]
-                Flow = sample[-1]
-                Masked_Flow = torch.zeros_like(Flow).cuda(self.gpu)
-                indices = torch.cat((Mask, Mask), 1) == 1.
-                Masked_Flow[indices] = Flow[indices]
+                Flow = sample[3]
+                Masked_Flow = sample[-1]
                 r = (1 - Mask) * torch.randn_like(Masked_Flow)
 
                 # Query Model
                 start.record()
 
-                predict_flow = self.G(I1, Mask, Masked_Flow)
+                predict_flow = self.G(I1, Mask, Masked_Flow, r)
                 batch_risk = EPE_Loss(predict_flow,Flow)
                 end.record()
                 torch.cuda.synchronize()

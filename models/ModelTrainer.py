@@ -48,10 +48,9 @@ class ModelTrainer:
 
             I1, I2 = sample[0:2]
             Mask = sample[2]
-            Flow = sample[-1]
-            Masked_Flow = torch.zeros_like(Flow,device=I1.device)
-            indices = torch.cat((Mask, Mask), 1) == 1.
-            Masked_Flow[indices] = Flow[indices]
+            Flow = sample[3]
+            Masked_Flow = sample[-1]
+
             # Time Iteration duration
             start.record()
             self.optimizer.zero_grad(set_to_none=True)
@@ -97,10 +96,8 @@ class ModelTrainer:
 
                 I1, I2 = sample[0:2]
                 Mask = sample[2]
+                Masked_Flow = sample[3]
                 Flow = sample[-1]
-                Masked_Flow = torch.zeros_like(Flow,device=I1.device)
-                indices = torch.cat((Mask, Mask), 1) == 1.
-                Masked_Flow[indices] = Flow[indices]
                 # Query Model
 
                 start.record()

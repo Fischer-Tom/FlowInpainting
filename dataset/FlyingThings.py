@@ -42,4 +42,15 @@ class FlyingThingsDataset(Dataset):
             flow = self.flow_transform(torch.Tensor(np.nan_to_num(flow[:,:,:2])).permute(2, 0, 1))
         c, h, w = im1.shape
 
-        return im0, im1, (torch.FloatTensor(1, h, w).uniform_() > self.density).float(), flow
+        mask = (torch.FloatTensor(1, h, w).uniform_() > self.density).float()
+
+        indices_1 = torch.cat((mask, torch.zeros_like(mask)), dim=0).bool()
+        mean_1 = flow[indices_1].mean()
+        indices_2 = torch.cat((torch.zeros_like(mask),mask), dim=0).bool()
+        mean_2 = flow[indices_2].mean()
+
+        m_flow = flow
+        m_flow[indices_1] = mean_1
+        m_flow[indices_2] = mean_2
+
+        return im0, im1, mask, flow, m_flow

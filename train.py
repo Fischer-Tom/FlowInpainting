@@ -122,8 +122,8 @@ def main_worker(gpu, ngpus, args):
         net = net.cuda(args.gpu)
 
     # Datasets and Loaders
-
     try:
+
         if args.dataset == 'Sintel':
             from dataset.Sintel import SintelDataset
             from torchvision import transforms
