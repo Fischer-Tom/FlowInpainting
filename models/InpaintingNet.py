@@ -51,7 +51,7 @@ class InpaintingNetwork(nn.Module):
 
     def get_flow(self, u, mask):
         divisor = self.sum_pool(mask)
-        flow = self.sum_pool(u)
+        flow = self.sum_pool(u*mask)
         return flow / torch.clamp(divisor, min=1)
 
     def forward(self, I, m, u, pre_guess=None):
