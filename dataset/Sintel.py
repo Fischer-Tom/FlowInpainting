@@ -46,7 +46,10 @@ class SintelDataset(Dataset):
         c,h,w = im1.shape
 
         mask = (torch.FloatTensor(1, h, w).uniform_() > self.density).float()
-
+        m_flow = torch.zeros_like(flow)
+        indices = torch.cat((mask,mask), dim=0).bool()
+        m_flow[indices] = flow[indices]
+        """
         indices_1 = torch.cat((mask, torch.zeros_like(mask)), dim=0).bool()
         mean_1 = flow[indices_1].mean()
         indices_2 = torch.cat((torch.zeros_like(mask), mask), dim=0).bool()
@@ -55,6 +58,7 @@ class SintelDataset(Dataset):
         m_flow = flow
         m_flow[indices_1] = mean_1
         m_flow[indices_2] = mean_2
+        """
         return im0, im1, mask, flow, m_flow
 
     def get_IDs(self, img_dir):
