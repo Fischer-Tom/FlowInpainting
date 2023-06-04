@@ -84,7 +84,7 @@ class FlowEncoder(nn.Module):
         self.conv2 = SimpleConv(dim, dim * 2, 3, 2, 1)
         self.conv3 = SimpleConv(dim * 2, dim * 4, 3, 2, 1)
         self.conv4 = SimpleConv(dim * 4, dim * 8, 3, 2, 1)
-        self.conv5 = SimpleConv(dim * 8, dim * 8, 3, 2, 1)
+        #self.conv5 = SimpleConv(dim * 8, dim * 8, 3, 2, 1)
 
         if 'encoder' in self.mode:
             if self.disc == 'resnet':
@@ -104,54 +104,17 @@ class FlowEncoder(nn.Module):
         #[i0, i1, i2, i3, i4] = image_features
 
         x0 = self.conv1(x)
-        if 'encoder' in self.mode:
-            if self.disc == 'resnet':
-                xin = torch.cat((x0,i0),dim=1)
-                x0 = self.dif0(xin)
-            else:
-                for block in self.dif0:
-                    x0 = block(x0,i0)
-
-
-
 
         x1 = self.conv2(x0)
-        if 'encoder' in self.mode:
-            if self.disc == 'resnet':
-                xin = torch.cat((x1,i1),dim=1)
-                x1 = self.dif1(xin)
-            else:
-                for block in self.dif1:
-                    x1 = block(x1,i1)
-
-
 
         x2 = self.conv3(x1)
-        if 'encoder' in self.mode:
-            if self.disc == 'resnet':
-                xin = torch.cat((x2,i2),dim=1)
-                x2 = self.dif2(xin)
-            else:
-                for block in self.dif2:
-                    x2 = block(x2,i2)
-
-
 
         x3 = self.conv4(x2)
-        if 'encoder' in self.mode:
-            if self.disc == 'resnet':
-                xin = torch.cat((x3,i3),dim=1)
-                x3 = self.dif3(xin)
-            else:
-                for block in self.dif3:
-                    x3 = block(x3,i3)
+
+        #x4 = self.conv5(x3)
 
 
-
-        x4 = self.conv5(x3)
-
-
-        return [x0, x1, x2, x3, x4]
+        return [x0, x1, x2, x3]
 
 class ImageEncoder(nn.Module):
 
@@ -184,8 +147,8 @@ class Decoder(nn.Module):
         self.mode = diffusion
         self.disc = disc
         self.steps = kwargs["steps"]
-        self.deconv4 = SimpleUpConv(dim*8, dim * 8, 1, 2, 0, 1)
-        self.deconv3 = SimpleUpConv(dim*16, dim * 8, 1, 2, 0, 1)
+        #self.deconv4 = SimpleUpConv(dim*8, dim * 8, 1, 2, 0, 1)
+        self.deconv3 = SimpleUpConv(dim*8, dim * 8, 1, 2, 0, 1)
         self.deconv2 = SimpleUpConv(dim*12+5, dim * 8, 1, 2, 0, 1)
         self.deconv1 = SimpleUpConv(dim*10+5, dim * 4, 1, 2, 0, 1)
         self.deconv0 = SimpleUpConv(dim*5+5, dim * 4, 1, 2, 0, 1)
@@ -215,11 +178,11 @@ class Decoder(nn.Module):
         self.upsample2 = nn.UpsamplingBilinear2d(scale_factor=2)
 
     def forward(self, flow_features, image_features,masks):
-        [x0, x1, x2, x3, x] = flow_features
+        [x0, x1, x2, x] = flow_features
         [i3,i2, i1, i0] = image_features
         [dM0, dM1, dM2, dM3] = masks
 
-        conv = self.deconv4(x)
+        #conv = self.deconv4(x)
         """
         if 'decoder' in self.mode:
             if self.disc == 'resnet':
@@ -231,7 +194,7 @@ class Decoder(nn.Module):
 
         """
 
-        x = torch.cat((conv, x3), dim=1)
+        #x = torch.cat((conv, x3), dim=1)
 
         conv = self.deconv3(x)
         if 'decoder' in self.mode:
@@ -294,7 +257,7 @@ class SimpleConv(nn.Module):
 
     def forward(self, x):
         x = self.conv(x)
-        #x = self.act(x)
+        x = self.act(x)
         return x
 
 
@@ -308,7 +271,7 @@ class SimpleUpConv(nn.Module):
 
     def forward(self, x):
         x = self.conv(x)
-        #x = self.act(x)
+        x = self.act(x)
         return x
 
 
