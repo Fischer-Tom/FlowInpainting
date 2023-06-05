@@ -20,10 +20,10 @@ class InpaintingNetwork(nn.Module):
         self.disc = disc
         self.DM = DiffusivityModule(dim,self.learned_mode)
         self.g = PeronaMalikDiffusivity()
-        self.zero_pad = nn.ZeroPad2d(1)
+        self.zero_pad = nn.ZeroPad2d(1) if self.learned_mode == 'WWW' else nn.ZeroPad2d((1,0,1,0))
+        self.pad = nn.ReplicationPad2d(1) if self.learned_mode == 'WWW' else nn.ReplicationPad2d((1,0,1,0))
         with torch.no_grad():
             self.constrain_weight()
-        self.pad = nn.ReplicationPad2d(1)
 
 
 
