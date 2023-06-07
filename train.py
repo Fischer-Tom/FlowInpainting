@@ -8,6 +8,8 @@ from torch.distributed import init_process_group
 import os
 from models.ModelTrainer import ModelTrainer
 from models.GANModelTrainer import GANModelTrainer
+from models.PD_Trainer import PD_Trainer
+from imagen_pytorch import Unet, SRUnet256, Imagen, ElucidatedImagen
 
 parser = argparse.ArgumentParser(description="OFNet")
 
@@ -80,34 +82,78 @@ train_writer = SummaryWriter(args.save_path + 'logs/train/' + args.model)
 validation_writer = SummaryWriter(args.save_path + 'logs/test/' + args.model)
 
 
+
 def main_worker(gpu, ngpus, args):
     args.gpu = gpu
     # Load Model here
     net = None
     ds = 'IP'
+    if args.model == 'PD_Inpainting':
+        unet1 = Unet(
+            dim=128,
+            dim_mults=(1, 2, 4, 8),
+            num_resnet_blocks=3,
+            layer_attns=(False, False, True, True),
+            layer_cross_attns=(False, False, False, False),
+            channels=2,
+            channels_out=2,
+            cond_images_channels=3
+        )
 
-    try:
-        if "Res_InpaintingFlowNetNet" in args.model:
-            from models.Res_InpaintingFlowNet import Res_InpaintingFlowNet as model
-        elif "InpaintingNet" in args.model:
-            if args.model_mode == 'Single':
-                from models.InpaintingNet import InpaintingNetwork as model
+        unet2 = SRUnet256(
+            dim=128,
+            dim_mults=(1, 2, 4, 8),
+            num_resnet_blocks=(2, 4, 8, 8),
+            layer_attns=(False, False, True, True),
+            layer_cross_attns=(False, False, False, False),
+            cond_images_channels=3
+        )
+
+        # imagen, which contains the unets above (base unet and super resoluting ones)
+
+        net = ElucidatedImagen(
+            unets=(unet1, unet2),
+            image_sizes=(64, 384),
+            cond_drop_prob=0.1,
+            num_sample_steps=(64, 32),
+            # number of sample steps - 64 for base unet, 32 for upsampler (just an example, have no clue what the optimal values are)
+            sigma_min=0.002,  # min noise level
+            sigma_max=(80, 160),  # max noise level, @crowsonkb recommends double the max noise level for upsampler
+            sigma_data=0.5,  # standard deviation of data distribution
+            rho=7,  # controls the sampling schedule
+            P_mean=-1.2,  # mean of log-normal distribution from which noise is drawn for training
+            P_std=1.2,  # standard deviation of log-normal distribution from which noise is drawn for training
+            S_churn=80,  # parameters for stochastic sampling - depends on dataset, Table 5 in apper
+            S_tmin=0.05,
+            S_tmax=50,
+            S_noise=1.003,
+            condition_on_text=False,
+            channels=2,
+            auto_normalize_img=False
+        )
+    else:
+        try:
+            if "Res_InpaintingFlowNetNet" in args.model:
+                from models.Res_InpaintingFlowNet import Res_InpaintingFlowNet as model
+            elif "InpaintingNet" in args.model:
+                if args.model_mode == 'Single':
+                    from models.InpaintingNet import InpaintingNetwork as model
+                else:
+                    from models.GAN_InpaintingNet import GAN_InpaintingNetwork as model
+            elif 'InpaintingFlowNet' in args.model:
+                from models.InpaintingFlowNet import InpaintingFlowNet as model
+            elif 'FlowNetS+' in args.model:
+                from models.FlowNetSP import FlowNetSP as model
+            elif 'WGAIN' in args.model:
+                from models.WGAIN import WGAIN as model
             else:
-                from models.GAN_InpaintingNet import GAN_InpaintingNetwork as model
-        elif 'InpaintingFlowNet' in args.model:
-            from models.InpaintingFlowNet import InpaintingFlowNet as model
-        elif 'FlowNetS+' in args.model:
-            from models.FlowNetSP import FlowNetSP as model
-        elif 'WGAIN' in args.model:
-            from models.WGAIN import WGAIN as model
-        else:
-            raise ImportError()
+                raise ImportError()
 
-    except ImportError:
-        print("Invalid Model choice. Supported are: FlowNetS, FlowNetC, UNet, Dummy")
-        exit(1)
+        except ImportError:
+            print("Invalid Model choice. Supported are: FlowNetS, FlowNetC, UNet, Dummy")
+            exit(1)
 
-    net = model(**vars(args))
+        net = model(**vars(args))
     if args.distributed:
 
         init_process_group(backend='nccl', world_size=ngpus, rank=args.gpu)
@@ -154,6 +200,15 @@ def main_worker(gpu, ngpus, args):
             train_loader = torch.utils.data.DataLoader(train_dataset, **params)
             validation_loader = torch.utils.data.DataLoader(val_dataset, **params)
             sintel_validation_loader = torch.utils.data.DataLoader(sintel_val_dataset, **params)
+        elif args.dataset == 'PD':
+            from dataset.pd_dataset import FlyingThingsDataset, SintelDataset
+            from dataset.pd_dataset import MultiEpochsDataLoader
+            dataset = FlyingThingsDataset
+            params = {'batch_size': 64,
+                      'shuffle': True,
+                      'num_workers': 8}
+            train_dataset = dataset(args.data_path, args.mask, mode='train', type=ds)
+            train_loader = MultiEpochsDataLoader(train_dataset, **params)
 
         else:
 
@@ -165,7 +220,13 @@ def main_worker(gpu, ngpus, args):
     pytorch_total_params = sum(p.numel() for p in net.parameters())
     print(f"Created Model {args.model} with {pytorch_total_params} total Parameters")
     # Load ModelTrainer and Potentialy saved state
-    trainer = ModelTrainer(net, **vars(args)) if args.model_mode == 'Single' else GANModelTrainer(net.G,net.C,**vars(args))
+    trainer = None
+    if args.model_mode == 'Single':
+        trainer = ModelTrainer(net, **vars(args))
+    elif args.model_mode == 'PD':
+        trainer = PD_Trainer(net,**vars(args))
+    else:
+        trainer = GANModelTrainer(net.G,net.C,**vars(args))
 
     if args.mode == 'test':
         #test_dataset = dataset(os.path.join(args.data_path, f'test'))
