@@ -97,7 +97,7 @@ def main_worker(gpu, ngpus, args):
             layer_cross_attns=(False, False, False, False),
             channels=2,
             channels_out=2,
-            cond_images_channels=3
+            cond_images_channels=6
         )
 
         unet2 = SRUnet256(
@@ -106,7 +106,7 @@ def main_worker(gpu, ngpus, args):
             num_resnet_blocks=(2, 4, 8, 8),
             layer_attns=(False, False, True, True),
             layer_cross_attns=(False, False, False, False),
-            cond_images_channels=3
+            cond_images_channels=6
         )
 
         # imagen, which contains the unets above (base unet and super resoluting ones)
@@ -189,7 +189,7 @@ def main_worker(gpu, ngpus, args):
             from torchvision import transforms
             dataset = FlyingThingsDataset
             sintel_dataset = SintelDataset
-            params = {'batch_size': 8,
+            params = {'batch_size': 16,
                       'shuffle': True,
                       'num_workers': 16,
                       'pin_memory': True}

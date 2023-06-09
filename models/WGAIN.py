@@ -55,6 +55,8 @@ class Generator(nn.Module):
         self.y5 = nn.ConvTranspose2d(in_channels=128+in_ch,out_channels=8, kernel_size=3, padding=1)
         self.y = nn.ConvTranspose2d(in_channels=8,out_channels=2, kernel_size=3, padding=1)
 
+
+
     def forward(self, I,M,u,r):
 
         x = torch.cat((I,u,r,M),dim=1)
@@ -112,7 +114,7 @@ class Generator(nn.Module):
         y5 = self.elu(self.y5(y4o))
         y = self.y(y5)
 
-        return (1-M)*y + M*u
+        return y
 
 
 class Critic(nn.Module):
@@ -120,17 +122,17 @@ class Critic(nn.Module):
     def __init__(self,in_ch):
         super().__init__()
         self.lReLU = nn.LeakyReLU(0.3)
-        self.x1 = nn.Conv2d(in_channels=in_ch,out_channels=64, kernel_size=5, stride=2)
-        self.x2 = nn.Conv2d(in_channels=64,out_channels=128, kernel_size=5, stride=2)
-        self.x3 = nn.Conv2d(in_channels=128,out_channels=256, kernel_size=5, stride=2)
-        self.x4 = nn.Conv2d(in_channels=256, out_channels=256, kernel_size=5, stride=2)
-        self.x5 = nn.Conv2d(in_channels=256, out_channels=512, kernel_size=5, stride=2)
+        self.x1 = nn.Conv2d(in_channels=in_ch,out_channels=64, kernel_size=5, stride=2, bias=False)
+        self.x2 = nn.Conv2d(in_channels=64,out_channels=128, kernel_size=5, stride=2, bias=False)
+        self.x3 = nn.Conv2d(in_channels=128,out_channels=256, kernel_size=5, stride=2, bias=False)
+        self.x4 = nn.Conv2d(in_channels=256, out_channels=256, kernel_size=5, stride=2, bias=False)
+        self.x5 = nn.Conv2d(in_channels=256, out_channels=512, kernel_size=5, stride=2, bias=False)
 
-        self.bn1 = nn.BatchNorm2d(64)
-        self.bn2 = nn.BatchNorm2d(128)
-        self.bn3 = nn.BatchNorm2d(256)
-        self.bn4 = nn.BatchNorm2d(256)
-        self.bn5 = nn.BatchNorm2d(512)
+        self.bn1 = nn.InstanceNorm2d(64, affine=True)
+        self.bn2 = nn.InstanceNorm2d(128, affine=True)
+        self.bn3 = nn.InstanceNorm2d(256, affine=True)
+        self.bn4 = nn.InstanceNorm2d(256, affine=True)
+        self.bn5 = nn.InstanceNorm2d(512, affine=True)
 
         self.linear = nn.Linear(41472,1)
         #self.linear = nn.Linear(86528,1)
@@ -143,6 +145,11 @@ class Critic(nn.Module):
         x = self.lReLU(self.bn3(self.x3(x)))
         x = self.lReLU(self.bn4(self.x4(x)))
         x = self.lReLU(self.bn5(self.x5(x)))
+        #x = self.lReLU(self.x1(x))
+        #x = self.lReLU(self.x2(x))
+        #x = self.lReLU(self.x3(x))
+        #x = self.lReLU(self.x4(x))
+        #x = self.lReLU(self.x5(x))
 
         x = torch.flatten(x,start_dim=1)
         x = self.linear(x)
