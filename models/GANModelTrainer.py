@@ -17,8 +17,8 @@ class GANModelTrainer:
         self.train_iters = 0
         self.total_iters = train_iter
         self.gpu = gpu
-        self.optimizer_G = torch.optim.Adam(self.G.parameters(), lr=1e-4,betas=(0.5,0.999),weight_decay=4e-4)
-        self.optimizer_C = torch.optim.Adam(self.C.parameters(), lr=1e-4,betas=(0.5,0.999),weight_decay=4e-4)
+        self.optimizer_G = torch.optim.Adam(self.G.parameters(), lr=5e-5,betas=(0.5,0.999),weight_decay=4e-4)
+        self.optimizer_C = torch.optim.Adam(self.C.parameters(), lr=5e-5,betas=(0.5,0.999),weight_decay=4e-4)
         self.lambda_GP = 10.
         self.critic_iters = 1
 
