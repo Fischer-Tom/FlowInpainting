@@ -8,7 +8,7 @@ class WGAIN(nn.Module):
         super().__init__()
 
         self.G = Generator(8)
-        self.C = Critic(3)
+        self.C = Critic(6)
 
     def forward(self,I,M,u):
 
@@ -138,8 +138,8 @@ class Critic(nn.Module):
         #self.linear = nn.Linear(86528,1)
         #self.linear = nn.Linear(12800, 1)
 
-    def forward(self,imp, M):
-        x = torch.cat((imp,M),dim=1)
+    def forward(self,I,imp, M):
+        x = torch.cat((I,imp,M),dim=1)
         x = self.lReLU(self.bn1(self.x1(x)))
         x = self.lReLU(self.bn2(self.x2(x)))
         x = self.lReLU(self.bn3(self.x3(x)))

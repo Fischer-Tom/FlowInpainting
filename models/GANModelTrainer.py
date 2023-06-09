@@ -66,9 +66,9 @@ class GANModelTrainer:
                 for _ in range(self.critic_iters):
                     fake = self.G(I1, Mask, Masked_Flow,r)
                     # Query Model
-                    fake_guess = self.C(fake,Mask).reshape(-1)
-                    real_guess = self.C(real,Mask).reshape(-1)
-                    gp = self.get_gradient_penalty(real, fake, Mask)
+                    fake_guess = self.C(I1,fake,Mask).reshape(-1)
+                    real_guess = self.C(I1,real,Mask).reshape(-1)
+                    gp = self.get_gradient_penalty(I1,real, fake, Mask)
                     loss_C = -(torch.mean(real_guess) - torch.mean(fake_guess)) + self.lambda_GP * gp
 
                     # Update Weights and learning rate
@@ -77,7 +77,7 @@ class GANModelTrainer:
                     self.optimizer_C.step()
                     #torch.nn.utils.clip_grad_norm_(self.C.parameters(),1.0)
 
-                fake_guess = self.C(fake,Mask).reshape(-1)
+                fake_guess = self.C(I1,fake,Mask).reshape(-1)
                 mae = EPE_Loss(100*fake,100*real)#torch.mean(torch.abs(fake-real))
                 loss_gen = -torch.mean(fake_guess) + mae
                 self.optimizer_G.zero_grad()
@@ -171,12 +171,12 @@ class GANModelTrainer:
                     param.requires_grad = requires_grad
 
 
-    def get_gradient_penalty(self,real_guess,fake_guess, M):
+    def get_gradient_penalty(self,I,real_guess,fake_guess, M):
         b,c,_,_ = real_guess.shape
         eps = torch.rand((b,1,1,1), device=real_guess.device).repeat(1,c,1,1)
         difference = fake_guess - real_guess
         interpolate = real_guess + (eps*difference)
-        int_score = self.C(interpolate,M)
+        int_score = self.C(I,interpolate,M)
         grad = torch.autograd.grad(inputs=interpolate,
                                 outputs=int_score,
                                 grad_outputs=torch.ones_like(int_score),
