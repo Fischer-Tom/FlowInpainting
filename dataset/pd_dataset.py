@@ -71,7 +71,7 @@ class FlyingThingsDataset(Dataset):
         if self.transform:
             im0 = self.transform(np.array(im0[:,:,:3]))
             im1 = self.transform(np.array(im1[:,:,:3]))
-            flow = self.flow_transform(torch.Tensor(np.nan_to_num(flow[:,:,:2])).permute(2, 0, 1)) / 1353.2810
+            flow = self.flow_transform(torch.Tensor(np.nan_to_num(flow[:,:,:2])).permute(2, 0, 1)) / 100.0#1353.2810
         c, h, w = im1.shape
 
         mask = (torch.FloatTensor(1, h, w).uniform_() > self.density).float()
@@ -119,7 +119,7 @@ class SintelDataset(Dataset):
         if self.transform:
             im0 = self.transform(np.array(im0))
             im1 = self.transform(np.array(im1))
-            flow = self.flow_transform(torch.Tensor(np.array(flow)).permute(2,0,1))
+            flow = self.flow_transform(torch.Tensor(np.array(flow)).permute(2,0,1)) / 100.0
 
         c,h,w = im1.shape
 
@@ -137,7 +137,7 @@ class SintelDataset(Dataset):
         m_flow[indices_1] = mean_1
         m_flow[indices_2] = mean_2
         """
-        return im0#, im1, mask, flow, m_flow
+        return im0, im1, mask, flow, m_flow
 
     def get_IDs(self, img_dir):
         data = ['final']

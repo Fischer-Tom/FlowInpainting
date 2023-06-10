@@ -86,6 +86,7 @@ class PD_Trainer:
         Mask_vis = torch.cat((Mask[0],Mask[0],Mask[0]),dim=0).detach().cpu()
         images = torch.stack((I1_vis,Mask_vis,torch.tensor(Flow_vis).permute(2,0,1),torch.tensor(Masked_vis).permute(2,0,1),torch.tensor(Pred_vis).permute(2,0,1)))
         """
+        self.trainer.load('/home/fischer/PD_samples/imagen_FullCond.pt')
         for j in range(250):
             for i, sample in enumerate(loader):
                 sample = [samp.cuda() for samp in sample]
@@ -93,10 +94,20 @@ class PD_Trainer:
                 Mask = sample[2]
                 Flow = sample[3]
                 Masked_Flow = sample[-1]
-                Condition = I1
-
-                loss = self.trainer(Flow, unet_number=1,cond_images=Condition, max_batch_size=4)
-                self.trainer.update(unet_number=1)
+                Condition = torch.cat((I1, Masked_Flow, Mask), dim=1)
+                """
+                self.trainer.load('./imagen.pt')
+                
+                images = self.trainer.sample(batch_size=1,stop_at_unet_number=1,cond_images=Condition[0:1,::], inpaint_images=Flow[0:1,::], inpaint_masks=Mask[0:1,0,::].bool())
+                images = images * 100.0# 1353.2810
+                plt.imsave(f'./sample-{i // 2000}.png',
+                           flow_vis.flow_to_color(images[0].cpu().permute(1, 2, 0).numpy()))
+                plt.imsave(f'./flow-{i // 2000}.png', flow_vis.flow_to_color(Flow[0].cpu().permute(1, 2, 0).numpy()))
+                plt.imsave(f'./image-{i // 2000}.png',inverse_normalize(I1[0].cpu()).permute(1, 2, 0).numpy())
+                exit()
+                """
+                loss = self.trainer(Flow, unet_number=2,cond_images=Condition, max_batch_size=4)
+                self.trainer.update(unet_number=2)
                 """
                 loss = self.net(Flow,cond_images=Condition, unet_number=2)
                 print(f'loss: {loss}')
@@ -104,13 +115,13 @@ class PD_Trainer:
                 #self.trainer.update(unet_number=1)
                 """
                 if not (i % 2000):  # is_main makes sure this can run in distributed
-                    images = self.trainer.sample(batch_size=1,stop_at_unet_number=1,cond_images=Condition[0:1,::], inpaint_images=Flow[0:1,::], inpaint_masks=Mask[0:1,0,::].bool())  # returns List[Image]
+                    images = self.trainer.sample(batch_size=1,stop_at_unet_number=2,cond_images=Condition[0:1,::], inpaint_images=Flow[0:1,::], inpaint_masks=Mask[0:1,0,::].bool(),cond_scale=5.)  # returns List[Image]
                     #print(Scaled_EPE_Loss_mean(images*1353.2810,Flow*1353.2810).item())
-                    images = images * 1353.2810
+                    images = images * 100.0#1353.2810
                     iterations += 1
                     #images[0].save(f'./sample-{i // 500}.png')
-                    print(f'loss: {loss}')
-                    plt.imsave(f'./sample-{i // 500}.png',flow_vis.flow_to_color(images[0].cpu().permute(1, 2, 0).numpy()))
+                    print(f'Iter: {j}, loss: {loss}')
+                    plt.imsave(f'./sample-{i // 2000}.png',flow_vis.flow_to_color(images[0].cpu().permute(1, 2, 0).numpy()))
                     self.trainer.save('./imagen.pt')
         return running_loss / iterations, start.elapsed_time(end)
 
