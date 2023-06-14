@@ -12,7 +12,7 @@ class InpaintingFlowNet(nn.Module):
         self.flow_encoder = FlowEncoder(diffusion_position,disc, dim=dim,in_ch=2, **kwargs)
         self.image_encoder = DiffusivityModule(dim=44,learned_mode=kwargs['learned_mode'])
         self.decoder = Decoder(diffusion_position,disc, dim, **kwargs)
-        self.mask_down1 = nn.Conv2d(1,1,3,2,1)
+        self.mask_down1 = nn.Conv2d(1, 1, 3, 2, 1)
         self.mask_down2 = nn.Conv2d(1, 1, 3, 2, 1)
         self.mask_down3 = nn.Conv2d(1, 1, 3, 2, 1)
         self.sig = nn.Sigmoid()
@@ -22,7 +22,7 @@ class InpaintingFlowNet(nn.Module):
     def forward(self, I1, Mask, Masked_Flow):
 
         image_features = self.image_encoder(I1)
-        encoder_out = self.flow_encoder(Masked_Flow, image_features)
+        encoder_out = self.flow_encoder(Masked_Flow)
 
         dM1 = self.sig(self.mask_down1(Mask))
         dM2 = self.sig(self.mask_down2(dM1))
@@ -84,37 +84,16 @@ class FlowEncoder(nn.Module):
         self.conv2 = SimpleConv(dim, dim * 2, 3, 2, 1)
         self.conv3 = SimpleConv(dim * 2, dim * 4, 3, 2, 1)
         self.conv4 = SimpleConv(dim * 4, dim * 8, 3, 2, 1)
-        #self.conv5 = SimpleConv(dim * 8, dim * 8, 3, 2, 1)
 
-        if 'encoder' in self.mode:
-            if self.disc == 'resnet':
-                self.dif0 = nn.Sequential(End_ResidualBlock(dim*2,dim,3,1,1),*[ResidualBlock(dim,dim,3,1,1) for _ in range(self.step)])#FSI_Block(dim, dim, **kwargs)
-                self.dif1 = nn.Sequential(End_ResidualBlock(dim*2*2,dim*2,3,1,1),*[ResidualBlock(dim*2,dim*2,3,1,1) for _ in range(self.step)])#FSI_Block(dim*2, dim*2, **kwargs)
-                self.dif2 = nn.Sequential(End_ResidualBlock(dim*4*2,dim*4,3,1,1),*[ResidualBlock(dim*4,dim*4,3,1,1) for _ in range(self.step)])#FSI_Block(dim*4, dim*4, **kwargs)
-                self.dif3 = nn.Sequential(End_ResidualBlock(dim*(8+4),dim*8,3,1,1),*[ResidualBlock(dim*8,dim*8,3,1,1) for _ in range(self.step)])#FSI_Block(dim * 8, dim*4, **kwargs)
-                self.dif4 = nn.Sequential(End_ResidualBlock(dim*(8+4),dim*8,3,1,1),*[ResidualBlock(dim*8,dim*8,3,1,1) for _ in range(self.step)])#FSI_Block(dim*8, dim*4, **kwargs)
-            else:
-                self.dif0 = nn.ModuleList([FSI_Block(dim, dim,disc, **kwargs)])
-                self.dif1 = nn.ModuleList([FSI_Block(dim*2, dim*2,disc, **kwargs)])
-                self.dif2 = nn.ModuleList([FSI_Block(dim*4, dim*4,disc, **kwargs)])
-                self.dif3 = nn.ModuleList([FSI_Block(dim * 8, dim*4,disc, **kwargs)])
-                self.dif4 = nn.ModuleList([FSI_Block(dim*8, dim*4,disc, **kwargs)])
+    def forward(self, x):
+        x = self.conv1(x)
 
-    def forward(self, x, image_features):
-        #[i0, i1, i2, i3, i4] = image_features
+        x = self.conv2(x)
 
-        x0 = self.conv1(x)
+        x = self.conv3(x)
 
-        x1 = self.conv2(x0)
-
-        x2 = self.conv3(x1)
-
-        x3 = self.conv4(x2)
-
-        #x4 = self.conv5(x3)
-
-
-        return [x0, x1, x2, x3]
+        x = self.conv4(x)
+        return x
 
 class ImageEncoder(nn.Module):
 
@@ -147,104 +126,42 @@ class Decoder(nn.Module):
         self.mode = diffusion
         self.disc = disc
         self.steps = kwargs["steps"]
-        #self.deconv4 = SimpleUpConv(dim*8, dim * 8, 1, 2, 0, 1)
         self.deconv3 = SimpleUpConv(dim*8, dim * 8, 1, 2, 0, 1)
-        self.deconv2 = SimpleUpConv(dim*12+5, dim * 8, 1, 2, 0, 1)
-        self.deconv1 = SimpleUpConv(dim*10+5, dim * 4, 1, 2, 0, 1)
-        self.deconv0 = SimpleUpConv(dim*5+5, dim * 4, 1, 2, 0, 1)
+        self.deconv2 = SimpleUpConv(dim*8, dim * 8, 1, 2, 0, 1)
+        self.deconv1 = SimpleUpConv(dim*8, dim * 4, 1, 2, 0, 1)
+        self.deconv0 = SimpleUpConv(dim*4, dim * 4, 1, 2, 0, 1)
 
 
         self.out   = nn.Conv2d(dim*4, 2, 5, 1, 2, bias=True)
 
-        if 'decoder' in self.mode:
-            if self.disc == 'resnet':
-                self.dif4 = nn.Sequential(End_ResidualBlock(dim*12,dim*8,3,1,1), *[ResidualBlock(dim * 8, dim*8, 3, 1, 1) for _ in range(self.step)]) # torch.jit.script(FSI_Block(dim, dim, **kwargs)
-                self.dif3 = nn.Sequential(End_ResidualBlock(dim*12,dim*8,3,1,1),*[ResidualBlock(dim * 8, dim*8, 3, 1, 1) for _ in range(self.step)]) # torch.jit.script(FSI_Block(dim*2, dim*2, **kwargs)
-                self.dif2 = nn.Sequential(End_ResidualBlock(dim*12,dim*8,3,1,1),*[ResidualBlock(dim * 8, dim*8, 3, 1, 1) for _ in range(self.step)])  # torch.jit.script(FSI_Block(dim*4, dim*4, **kwargs)
-                self.dif1 = nn.Sequential(End_ResidualBlock(dim*10,dim*8,3,1,1),*[ResidualBlock(dim * 8, dim*8, 3, 1, 1) for _ in range(self.step)])  # torch.jit.script(FSI_Block(dim * 8, dim*4, **kwargs)
-                self.dif0 = nn.Sequential(End_ResidualBlock(dim*5,dim*4,3,1,1),*[ResidualBlock(dim * 4, dim*4, 3, 1, 1) for _ in range(self.step)])  # torch.jit.script(FSI_Block(dim*8, dim*4, **kwargs)
-            else:
-                #self.dif4 = nn.ModuleList([FSI_Block(dim*8, dim*4,disc, **kwargs)])
-                kwargs['step'] = self.steps[0]
-                self.dif3 = nn.ModuleList([FSI_Block(dim*8, dim*4,disc, **kwargs)])
-                kwargs['step'] = self.steps[1]
-                self.dif2 = nn.ModuleList([FSI_Block(dim*8, dim*4,disc, **kwargs)])
-                kwargs['step'] = self.steps[2]
-                self.dif1 = nn.ModuleList([FSI_Block(dim*4, dim*2,disc, **kwargs)])
-                kwargs['step'] = self.steps[3]
-                self.dif0 = nn.ModuleList([FSI_Block(2, dim,disc, **kwargs)])
+
+        kwargs['step'] = self.steps[0]
+        self.dif3 = nn.ModuleList([FSI_Block(dim*8, dim*4,disc, **kwargs)])
+        kwargs['step'] = self.steps[1]
+        self.dif2 = nn.ModuleList([FSI_Block(dim*8, dim*4,disc, **kwargs)])
+        kwargs['step'] = self.steps[2]
+        self.dif1 = nn.ModuleList([FSI_Block(dim*4, dim*2,disc, **kwargs)])
+        kwargs['step'] = self.steps[3]
+        self.dif0 = nn.ModuleList([FSI_Block(2, dim,disc, **kwargs)])
 
 
-        self.upsample2 = nn.UpsamplingBilinear2d(scale_factor=2)
-
-    def forward(self, flow_features, image_features,masks):
-        [x0, x1, x2, x] = flow_features
+    def forward(self, x, image_features,masks):
         [i3,i2, i1, i0] = image_features
         [dM0, dM1, dM2, dM3] = masks
 
-        #conv = self.deconv4(x)
-        """
-        if 'decoder' in self.mode:
-            if self.disc == 'resnet':
-                xin = torch.cat((conv,i3),dim=1)
-                conv = self.dif3(xin)
-            else:
-                for block in self.dif3:
-                    conv = block(conv,i3)
-
-        """
-
-        #x = torch.cat((conv, x3), dim=1)
-
-        conv = self.deconv3(x)
-        if 'decoder' in self.mode:
-            if self.disc == 'resnet':
-                xin = torch.cat((conv,i3),dim=1)
-                conv = self.dif3(xin)
-            else:
-                for block in self.dif3:
-                    conv = block(conv,i3,dM3)
-
-
-
-        x = torch.cat((conv, i3, x2), dim=1)
-
-        conv = self.deconv2(x)
-        if 'decoder' in self.mode:
-            if self.disc == 'resnet':
-                xin = torch.cat((conv, i2), dim=1)
-                conv = self.dif2(xin)
-            else:
-                for block in self.dif2:
-                    conv = block(conv, i2,dM2)
-
-
-        x = torch.cat((conv, i2, x1), dim=1)
-
-        conv = self.deconv1(x)
-        if 'decoder' in self.mode:
-            if self.disc == 'resnet':
-                xin = torch.cat((conv, i1), dim=1)
-                conv = self.dif1(xin)
-            else:
-                for block in self.dif1:
-                    conv = block(conv, i1,dM1)
-
-
-
-        x = torch.cat((conv, i1, x0), dim=1)
-
+        x = self.deconv3(x)
+        for block in self.dif3:
+            x = block(x,i3,dM3)
+        x = self.deconv2(x)
+        for block in self.dif2:
+            x = block(x, i2,dM2)
+        x = self.deconv1(x)
+        for block in self.dif1:
+            x = block(x, i1,dM1)
         x = self.deconv0(x)
-
-        conv = self.out(x)
-        if 'decoder' in self.mode:
-            if self.disc == 'resnet':
-                xin = torch.cat((conv, i0), dim=1)
-                out = self.dif0(xin)
-            else:
-                for block in self.dif0:
-                    out = block(conv, i0,dM0)
-
+        out = self.out(x)
+        for block in self.dif0:
+            out = block(out, i0,dM0)
         return out
 
 class SimpleConv(nn.Module):

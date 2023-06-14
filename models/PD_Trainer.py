@@ -6,8 +6,7 @@ from imagelib.core import inverse_normalize
 from imagen_pytorch import ImagenTrainer
 import matplotlib.pyplot as plt
 from utils.loss_functions import Scaled_EPE_Loss_mean
-from tqdm import tqdm
-
+import einops
 class PD_Trainer:
 
     def __init__(self, net, optimizer, gpu, train_iter, **kwargs):
@@ -86,7 +85,7 @@ class PD_Trainer:
         Mask_vis = torch.cat((Mask[0],Mask[0],Mask[0]),dim=0).detach().cpu()
         images = torch.stack((I1_vis,Mask_vis,torch.tensor(Flow_vis).permute(2,0,1),torch.tensor(Masked_vis).permute(2,0,1),torch.tensor(Pred_vis).permute(2,0,1)))
         """
-        self.trainer.load('/home/fischer/PD_samples/imagen_FullCond.pt')
+        #self.trainer.load('/home/fischer/PD_samples/imagen_FullCond.pt')
         for j in range(250):
             for i, sample in enumerate(loader):
                 sample = [samp.cuda() for samp in sample]
@@ -94,18 +93,39 @@ class PD_Trainer:
                 Mask = sample[2]
                 Flow = sample[3]
                 Masked_Flow = sample[-1]
-                Condition = torch.cat((I1, Masked_Flow, Mask), dim=1)
-                """
+                Condition = I1#torch.cat((I1, Masked_Flow, Mask), dim=1)
+                m = torch.nn.functional.interpolate(einops.rearrange(Mask.bool(), 'b ... -> b 1 ...').float()[:,0,::], mode='nearest-exact',size=64)
+                MaskSave = torch.cat((m,m,m), dim=1)
+                plt.imsave(f'./Mask-{i // 2000}.png',MaskSave[0].cpu().permute(1, 2, 0).numpy())
                 self.trainer.load('./imagen.pt')
                 
-                images = self.trainer.sample(batch_size=1,stop_at_unet_number=1,cond_images=Condition[0:1,::], inpaint_images=Flow[0:1,::], inpaint_masks=Mask[0:1,0,::].bool())
+                images = self.trainer.sample(batch_size=1,stop_at_unet_number=1,cond_images=Condition[0:1,::], inpaint_images=Flow[0:1,::], inpaint_masks=Mask[0:1,0,::].bool(), cond_scale=5.)
                 images = images * 100.0# 1353.2810
                 plt.imsave(f'./sample-{i // 2000}.png',
                            flow_vis.flow_to_color(images[0].cpu().permute(1, 2, 0).numpy()))
                 plt.imsave(f'./flow-{i // 2000}.png', flow_vis.flow_to_color(Flow[0].cpu().permute(1, 2, 0).numpy()))
                 plt.imsave(f'./image-{i // 2000}.png',inverse_normalize(I1[0].cpu()).permute(1, 2, 0).numpy())
+
+
+
+                #images = self.trainer.sample(batch_size=1,stop_at_unet_number=2,cond_images=Condition[0:1,::], inpaint_images=Flow[0:1,::], inpaint_masks=Mask[0:1,0,::].bool())
+                #images = images * 100.0# 1353.2810
+                #plt.imsave(f'./sample_full-{i // 2000}.png',
+                           #flow_vis.flow_to_color(images[0].cpu().permute(1, 2, 0).numpy()))
+                images = self.trainer.sample(batch_size=1, stop_at_unet_number=1, cond_images=Condition[0:1, ::],
+                                             inpaint_images=Flow[0:1, ::], inpaint_masks=Mask[0:1, 0, ::].bool(),
+                                            )
+                images = images * 100.0  # 1353.2810
+                plt.imsave(f'./sample2-{i // 2000}.png',
+                           flow_vis.flow_to_color(images[0].cpu().permute(1, 2, 0).numpy()))
+                images = self.trainer.sample(batch_size=1, stop_at_unet_number=1, cond_images=Condition[0:1, ::],
+                                             inpaint_images=Flow[0:1, ::], inpaint_masks=Mask[0:1, 0, ::].bool(),
+                                             cond_scale=25.)
+                images = images * 100.0  # 1353.2810
+                plt.imsave(f'./sample-HighCond-{i // 2000}.png',
+                           flow_vis.flow_to_color(images[0].cpu().permute(1, 2, 0).numpy()))
                 exit()
-                """
+
                 loss = self.trainer(Flow, unet_number=2,cond_images=Condition, max_batch_size=4)
                 self.trainer.update(unet_number=2)
                 """

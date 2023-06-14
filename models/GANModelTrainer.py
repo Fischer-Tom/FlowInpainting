@@ -63,6 +63,23 @@ class GANModelTrainer:
                 #indices = torch.cat((Mask,Mask), dim=1)
                 start.record()
                 r = (1 - Mask) * torch.randn_like(Masked_Flow)
+                with torch.no_grad():
+                    self.G.eval()
+                    MaskSave = torch.cat((Mask,Mask,Mask),dim=1)
+                    plt.imsave(f'./Mask-{i // 2000}.png', MaskSave[0].cpu().permute(1, 2, 0).numpy())
+                    plt.imsave(f'./flow-{i // 2000}.png', flow_vis.flow_to_color(real[0].cpu().permute(1, 2, 0).numpy()))
+                    plt.imsave(f'./image-{i // 2000}.png', inverse_normalize(I1[0].cpu()).permute(1, 2, 0).numpy())
+                    self.G.load_state_dict(torch.load("./checkpoints/WGAIN/WGAIN_1.pt"))
+                    images = self.G(I1,Mask,Masked_Flow,r)
+                    images = (1 - Mask) * images + Mask * Masked_Flow
+
+                    images = images * 100.0  # 1353.2810
+
+                    plt.imsave(f'./sample-{i // 2000}.png',
+                               flow_vis.flow_to_color(images[0].cpu().permute(1, 2, 0).numpy()))
+
+                exit()
+
                 for _ in range(self.critic_iters):
                     fake = self.G(I1, Mask, Masked_Flow,r)
                     # Query Model
