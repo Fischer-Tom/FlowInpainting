@@ -10,6 +10,7 @@ from models.ModelTrainer import ModelTrainer
 from models.GANModelTrainer import GANModelTrainer
 from models.PD_Trainer import PD_Trainer
 from imagen_pytorch import Unet, SRUnet256, Imagen, ElucidatedImagen
+from torch.utils.data import Subset
 
 parser = argparse.ArgumentParser(description="OFNet")
 
@@ -27,7 +28,7 @@ parser.add_argument('--dataset', type=str, default="FlyingThings",
 
 # Training Details
 parser.add_argument('--train_iter', type=int, default=900_000, help="Number of Epochs to train")
-parser.add_argument('--test_interval', type=int, default=15_000,
+parser.add_argument('--test_interval', type=int, default=10_000,
                     help="After how many Epochs the model parses the Test set")
 parser.add_argument('--distributed', type=bool, default=False, help="Use Multiple GPUs for training")
 parser.add_argument('--model', type=str, default="FlowNetS",
@@ -63,7 +64,8 @@ parser.add_argument('--steps', nargs='+', type=int, default=[5,15,30,45], help="
 parser.add_argument('--step', type=int, default=5, help="How many steps per resolution")
 parser.add_argument('--disc', type=str, default="DB", help="Discretization")
 parser.add_argument('--learned_mode', type=int, default=5, help="How many parameters to learn")
-
+parser.add_argument('--subset_size', type=int, default=100, help="How many parameters to learn")
+parser.add_argument('--presmooth', type=bool, default=False, help="Gaussian Pre-Smoothing")
 
 
 parser.add_argument('--use_dt', type=bool, default=False, help="Whether or not we use DT in Res_InpaintingNet")
@@ -135,6 +137,8 @@ def main_worker(gpu, ngpus, args):
         try:
             if "Res_InpaintingFlowNetNet" in args.model:
                 from models.Res_InpaintingFlowNet import Res_InpaintingFlowNet as model
+            elif "C_InpaintingNet" in args.model:
+                from models.Contrast_InpaintingNet import InpaintingNetwork as model
             elif "InpaintingNet" in args.model:
                 from models.InpaintingNet import InpaintingNetwork as model
             elif "DTM" in args.model:
@@ -193,9 +197,12 @@ def main_worker(gpu, ngpus, args):
                       'num_workers': 16,
                       'pin_memory': True}
             # Datasets and Loaders
-            val_dataset = dataset(args.data_path, args.mask, mode='test', type=ds)
-            sintel_val_dataset = sintel_dataset(args.data_path, args.mask, mode='test', type=ds)
-            train_dataset = dataset(args.data_path, args.mask, mode='train', type=ds)
+            val_dataset = dataset(args.data_path, args.mask, mode='test', type=ds, presmooth=args.presmooth)
+            sintel_val_dataset = sintel_dataset(args.data_path, args.mask, mode='test', type=ds, presmooth=args.presmooth)
+            train_dataset = dataset(args.data_path, args.mask, mode='train', type=ds, presmooth=args.presmooth)
+            if args.subset_size!=100:
+                samples = int(train_dataset.__len__() * (args.subset_size/100))
+                train_dataset = Subset(train_dataset, torch.arange(samples))
             train_loader = torch.utils.data.DataLoader(train_dataset, **params)
             validation_loader = torch.utils.data.DataLoader(val_dataset, **params)
             sintel_validation_loader = torch.utils.data.DataLoader(sintel_val_dataset, **params)

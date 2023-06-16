@@ -46,40 +46,40 @@ class ModelTrainer:
         start = torch.cuda.Event(enable_timing=True)
         end = torch.cuda.Event(enable_timing=True)
         I1, Mask, Flow, predict_flow = None, None, None, None
-        with tqdm(loader, unit="batch") as tepoch:
-            for i, sample in enumerate(tepoch):
-                sample = [samp.cuda() for samp in sample]
+        #with tqdm(loader, unit="batch") as tepoch:
+        for i, sample in enumerate(loader):
+            sample = [samp.cuda() for samp in sample]
 
-                I1, I2 = sample[0:2]
-                Mask = sample[2]
-                Flow = sample[3]
-                Masked_Flow = sample[-1]
+            I1, I2 = sample[0:2]
+            Mask = sample[2]
+            Flow = sample[3]
+            Masked_Flow = sample[-1]
 
-                # Time Iteration duration
-                start.record()
-                self.optimizer.zero_grad(set_to_none=True)
-                # Query Model
-                predict_flow = self.net(I1, Mask, Masked_Flow)
-                batch_risk = self.net.get_loss(predict_flow, Flow)
+            # Time Iteration duration
+            start.record()
+            self.optimizer.zero_grad(set_to_none=True)
+            # Query Model
+            predict_flow = self.net(I1, Mask, Masked_Flow)
+            batch_risk = self.net.get_loss(predict_flow, Flow)
 
-                # Update Weights and learning rate
-                batch_risk.backward()
-                self.optimizer.step()
-                self.net.update_lr(self.scheduler, self.train_iters)
-                with torch.no_grad():
-                    self.net.constrain_weight()
-                end.record()
-                #torch.cuda.synchronize()
-                # Update running loss
-                running_loss += batch_risk.item()
-                iterations += 1
-                self.train_iters += 1
-                if self.train_iters > self.total_iters:
-                    break
-                if not torch.is_tensor(predict_flow):
-                    predict_flow = predict_flow[0]
-                tepoch.set_postfix(loss=running_loss / iterations)
-            #print(f"Loss: {running_loss/iterations}, timing: {start.elapsed_time(end)}")
+            # Update Weights and learning rate
+            batch_risk.backward()
+            self.optimizer.step()
+            self.net.update_lr(self.scheduler, self.train_iters)
+            with torch.no_grad():
+                self.net.constrain_weight()
+            end.record()
+            #torch.cuda.synchronize()
+            # Update running loss
+            running_loss += batch_risk.item()
+            iterations += 1
+            self.train_iters += 1
+            if self.train_iters > self.total_iters:
+                break
+            if not torch.is_tensor(predict_flow):
+                predict_flow = predict_flow[0]
+        #    tepoch.set_postfix(loss=running_loss / iterations)
+        #print(f"Loss: {running_loss/iterations}, timing: {start.elapsed_time(end)}")
 
         Flow_vis = flow_vis.flow_to_color(Flow[0].detach().cpu().permute(1,2,0).numpy())
         Pred_vis = flow_vis.flow_to_color(predict_flow[0].detach().cpu().permute(1, 2, 0).numpy())

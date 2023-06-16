@@ -133,7 +133,7 @@ class SimpleConv(nn.Module):
 
     def forward(self, x):
         x = self.conv(x)
-        #x = self.act(x)
+        x = self.act(x)
         return x
 
 
@@ -147,7 +147,7 @@ class SimpleUpConv(nn.Module):
 
     def forward(self, x):
         x = self.conv(x)
-        #x = self.act(x)
+        x = self.act(x)
         return x
 
 
