@@ -5,8 +5,9 @@ import flow_vis
 from imagelib.core import inverse_normalize
 from imagen_pytorch import ImagenTrainer
 import matplotlib.pyplot as plt
-from utils.loss_functions import Scaled_EPE_Loss_mean
+from utils.loss_functions import Scaled_EPE_Loss_mean, EPE_Loss
 import einops
+from imagelib.inout import write_flo_file
 class PD_Trainer:
 
     def __init__(self, net, optimizer, gpu, train_iter, **kwargs):
@@ -94,36 +95,19 @@ class PD_Trainer:
                 Flow = sample[3]
                 Masked_Flow = sample[-1]
                 Condition = I1#torch.cat((I1, Masked_Flow, Mask), dim=1)
-                m = torch.nn.functional.interpolate(einops.rearrange(Mask.bool(), 'b ... -> b 1 ...').float()[:,0,::], mode='nearest-exact',size=64)
-                MaskSave = torch.cat((m,m,m), dim=1)
+                MaskSave = torch.cat((Mask,Mask,Mask), dim=1)
                 plt.imsave(f'./Mask-{i // 2000}.png',MaskSave[0].cpu().permute(1, 2, 0).numpy())
                 self.trainer.load('./imagen.pt')
                 
-                images = self.trainer.sample(batch_size=1,stop_at_unet_number=1,cond_images=Condition[0:1,::], inpaint_images=Flow[0:1,::], inpaint_masks=Mask[0:1,0,::].bool(), cond_scale=5.)
+                images = self.trainer.sample(batch_size=1,stop_at_unet_number=2,cond_images=Condition[0:1,::],inpaint_images=Flow[0:1,::],inpaint_masks=Mask[0:1,0,::].bool(), cond_scale=500.)
                 images = images * 100.0# 1353.2810
                 plt.imsave(f'./sample-{i // 2000}.png',
                            flow_vis.flow_to_color(images[0].cpu().permute(1, 2, 0).numpy()))
                 plt.imsave(f'./flow-{i // 2000}.png', flow_vis.flow_to_color(Flow[0].cpu().permute(1, 2, 0).numpy()))
                 plt.imsave(f'./image-{i // 2000}.png',inverse_normalize(I1[0].cpu()).permute(1, 2, 0).numpy())
-
-
-
-                #images = self.trainer.sample(batch_size=1,stop_at_unet_number=2,cond_images=Condition[0:1,::], inpaint_images=Flow[0:1,::], inpaint_masks=Mask[0:1,0,::].bool())
-                #images = images * 100.0# 1353.2810
-                #plt.imsave(f'./sample_full-{i // 2000}.png',
-                           #flow_vis.flow_to_color(images[0].cpu().permute(1, 2, 0).numpy()))
-                images = self.trainer.sample(batch_size=1, stop_at_unet_number=1, cond_images=Condition[0:1, ::],
-                                             inpaint_images=Flow[0:1, ::], inpaint_masks=Mask[0:1, 0, ::].bool(),
-                                            )
-                images = images * 100.0  # 1353.2810
-                plt.imsave(f'./sample2-{i // 2000}.png',
-                           flow_vis.flow_to_color(images[0].cpu().permute(1, 2, 0).numpy()))
-                images = self.trainer.sample(batch_size=1, stop_at_unet_number=1, cond_images=Condition[0:1, ::],
-                                             inpaint_images=Flow[0:1, ::], inpaint_masks=Mask[0:1, 0, ::].bool(),
-                                             cond_scale=25.)
-                images = images * 100.0  # 1353.2810
-                plt.imsave(f'./sample-HighCond-{i // 2000}.png',
-                           flow_vis.flow_to_color(images[0].cpu().permute(1, 2, 0).numpy()))
+                write_flo_file(f'./flow.flo', images[0].cpu().permute(1,2,0).numpy())
+                loss = torch.norm(100*Flow[0,:,:,:] - images, 2, 1).mean()
+                print(f"Loss: {loss}")
                 exit()
 
                 loss = self.trainer(Flow, unet_number=2,cond_images=Condition, max_batch_size=4)
@@ -135,7 +119,7 @@ class PD_Trainer:
                 #self.trainer.update(unet_number=1)
                 """
                 if not (i % 2000):  # is_main makes sure this can run in distributed
-                    images = self.trainer.sample(batch_size=1,stop_at_unet_number=2,cond_images=Condition[0:1,::], inpaint_images=Flow[0:1,::], inpaint_masks=Mask[0:1,0,::].bool(),cond_scale=5.)  # returns List[Image]
+                    images = self.trainer.sample(batch_size=1,stop_at_unet_number=2,cond_images=Condition[0:1,::], cond_scale=5.)  # returns List[Image]
                     #print(Scaled_EPE_Loss_mean(images*1353.2810,Flow*1353.2810).item())
                     images = images * 100.0#1353.2810
                     iterations += 1
@@ -150,22 +134,24 @@ class PD_Trainer:
         running_loss = 0.0
         iterations = 0
         I1, Mask, Flow, predict_flow = None, None, None, None
+        self.trainer.load('/home/fischer/PD_Samples/imagen.pt')
+
         with torch.no_grad():
             start = torch.cuda.Event(enable_timing=True)
             end = torch.cuda.Event(enable_timing=True)
             for i, sample in enumerate(loader):
-                sample = [samp.cuda(self.gpu) for samp in sample]
-
+                sample = [samp.cuda() for samp in sample]
                 I1, I2 = sample[0:2]
                 Mask = sample[2]
                 Flow = sample[3]
                 Masked_Flow = sample[-1]
-                # Query Model
+                Condition = I1  # torch.cat((I1, Masked_Flow, Mask), dim=1)
+
+                predict_flow = self.trainer.sample(batch_size=Condition.shape[0], cond_images=Condition,
+                                             inpaint_images=Masked_Flow, inpaint_masks=Mask.bool(), cond_scale=500.)                # Query Model
 
                 start.record()
-
-                predict_flow = self.net(I1, Mask, Masked_Flow)
-                batch_risk = self.net.get_loss(predict_flow, Flow)
+                batch_risk = EPE_Loss(100.0 * predict_flow, 100.0 * Flow)
                 end.record()
                 torch.cuda.synchronize()
                 # Update running loss
