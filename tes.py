@@ -165,7 +165,7 @@ def plot_mask_gener(weights, timings):
 
 
 
-nets = ["DTM", "DTM+","FlowNetS", "WGAIN", "PD"]
+nets = ["DB_InpaintingNet_5"]#, "DTM+","FlowNetS", "WGAIN", "PD"]
 names = nets
 prefix = '/home/fischer/FlowInpainting/Experiments/'
 
@@ -183,14 +183,14 @@ sintel_dataset = SintelDataset
 params = {'batch_size': 4,
           'shuffle': True,
           'num_workers': 4}
-"""
+
 # Datasets and Loaders
-val_dataset = dataset("", 0.99, mode='test', type='IP')
-sintel_val_dataset = sintel_dataset("/home/fischer/FlowInpainting/dataset/Sintel", 0.99, mode='test', type="IP")
+val_dataset = dataset("", 0.95,presmooth=False, mode='test', type='IP')
+sintel_val_dataset = sintel_dataset("/home/fischer/FlowInpainting/dataset/Sintel", 0.95, presmooth=False, mode='test', type="IP")
 test_loader = torch.utils.data.DataLoader(val_dataset, **params)
 validation_loader = torch.utils.data.DataLoader(sintel_val_dataset, **params)
 
-
+"""
 run_data = pd.DataFrame(columns=[])
 
 for idx, name in enumerate(json_files):
@@ -204,10 +204,9 @@ for idx, name in enumerate(json_files):
     EPE.append(loss[-1])
 
 """
-"""
 for net_name in nets:
     net = load_net(net_name)
-    weights.append(sum(p.numel() for p in net.parameters()))
+    #weights.append(sum(p.numel() for p in net.parameters()))
 
     running_loss = 0.0
     iterations = 0
@@ -217,21 +216,22 @@ for net_name in nets:
         end = torch.cuda.Event(enable_timing=True)
 
         if ds == 'Geo':
-            for i, sample in enumerate(validation_loader):
+            for i, sample in enumerate(test_loader):
                 sample = [samp.cuda() for samp in sample]
 
                 I1, I2 = sample[0:2]
                 Mask = sample[2]
-                Flow = sample[3] / 100.0
-                Masked_Flow = sample[-1] / 100.0
+                Flow = sample[3]# / 100.0
+                Masked_Flow = sample[-1]# / 100.0
                 # Query Model
-                r = (1 - Mask) * torch.randn_like(Masked_Flow)
-                Condition = torch.cat((I1, Masked_Flow, Mask), dim=1)
+                #r = (1 - Mask) * torch.randn_like(Masked_Flow)
+                #Condition = torch.cat((I1, Masked_Flow, Mask), dim=1)
 
                 start.record()
-                predict_flow = net.sample(batch_size=1, stop_at_unet_number=2, cond_images=Condition[0:1, ::],
-                       inpaint_images=Flow[0:1, ::], inpaint_masks=Mask[0:1, 0, ::].bool(), cond_scale=5.)
+                #predict_flow = net.sample(batch_size=1, stop_at_unet_number=2, cond_images=Condition[0:1, ::],
+                #       inpaint_images=Flow[0:1, ::], inpaint_masks=Mask[0:1, 0, ::].bool(), cond_scale=5.)
                 #predict_flow = net.G(I1, Mask, Masked_Flow, r)
+                predict_flow = net(I1, Mask, Masked_Flow)
                 batch_risk = EPE_Loss(predict_flow, Flow)#net.get_loss(predict_flow, Flow)
                 end.record()
                 torch.cuda.synchronize()
@@ -260,24 +260,23 @@ for net_name in nets:
                 iterations += 1
                 if i > 150:
                     break
-        timings.append(running_timings / iterations)
+        print(running_loss / iterations)
+        #timings.append(running_timings / iterations)
         EPE.append(running_loss / iterations)
 
 #np.savetxt('EPE.csv',np.asarray(EPE),delimiter=',')
-np.savetxt('timings3.csv',np.asarray(timings),delimiter=',')
-np.savetxt('weights3.csv',np.asarray(weights),delimiter=',')
-"""
-"""
-EPE = np.loadtxt('EPE.csv',delimiter=',')
-EPE_2 = np.loadtxt('EPE_FT.csv',delimiter=',')
-"""
+#np.savetxt('timings3.csv',np.asarray(timings),delimiter=',')
+#np.savetxt('weights3.csv',np.asarray(weights),delimiter=',')
 
-with open('timings.json', 'r') as f:
-    timings = json.load(f)
+#EPE = np.loadtxt('EPE.csv',delimiter=',')
+#EPE_2 = np.loadtxt('EPE_FT.csv',delimiter=',')
 
-with open('weights.json','r') as f:
-    weights = json.load(f)
+#with open('timings.json', 'r') as f:
+#    timings = json.load(f)
 
-print(timings)
-print(weights)
-plot_mask_gener(weights, timings)
+#with open('weights.json','r') as f:
+#    weights = json.load(f)
+
+#print(timings)
+#print(weights)
+#plot_mask_gener(weights, timings)

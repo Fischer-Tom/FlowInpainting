@@ -1,0 +1,17 @@
+models:
+  FlowNetS+:
+    1: /home/fischer/FlowInpainting/checkpoints/N1/FlowNetS+/model.pt
+    5: /home/fischer/FlowInpainting/checkpoints/N5/FlowNetS+/model.pt
+    10: /home/fischer/FlowInpainting/checkpoints/N10/FlowNetS+/model.pt
+  InpaintingNet:
+    1: /home/fischer/FlowInpainting/checkpoints/N1/DB_InpaintingNet_LM5_bigBs/model.pt
+    5: /home/fischer/FlowInpainting/checkpoints/N5/DB_InpaintingNet_LM5_bigBs/model.pt
+    10: /home/fischer/FlowInpainting/checkpoints/N10/DB_InpaintingNet_LM5_bigBs/model.pt
+  DTM:
+    1: /home/fischer/FlowInpainting/checkpoints/N1/FlowNetS+/model.pt
+    5: /home/fischer/FlowInpainting/checkpoints/N5/FlowNetS+/model.pt
+    10: /home/fischer/FlowInpainting/checkpoints/N10/FlowNetS+/model.pt
+  WGAIN:
+    1: /home/fischer/FlowInpainting/checkpoints/N1/WGAIN/model.pt
+    5: /home/fischer/FlowInpainting/checkpoints/N5/WGAIN/model.pt
+    10: /home/fischer/FlowInpainting/checkpoints/N10/WGAIN/model.pt

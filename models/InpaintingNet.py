@@ -60,11 +60,9 @@ class InpaintingNetwork(nn.Module):
         for j, (f,c,i,block) in enumerate(zip(flows, masks, image_features, self.blocks)):
             if u is None: u = f
             Da,Db,Dc,alpha = self.get_DiffusionTensor(i)
-
-            u = (1. - c) * u + c * f
+            u = (1-c)*u + c*f
             u = block(u, f, c, Da,Db,Dc,alpha)
-            if self.training and j == self.output_resolution:
-                break
+
             if j < self.output_resolution:
                 u = F.interpolate(u, scale_factor=2, mode='bilinear')
 
@@ -105,6 +103,7 @@ class FSI_Block(nn.Module):
         super().__init__()
         self.alphas = nn.ParameterList([nn.Parameter(torch.tensor((4 * i + 2) / (2 * i + 3)),
                                                      requires_grad=kwargs['grads']['alphas']) for i in range(timesteps)])
+
         self.blocks = nn.ModuleList([torch.jit.script(DiffusionBlock(2,**kwargs)) for _ in range(timesteps)]) if disc == "DB" else \
             nn.ModuleList([torch.jit.script(WWWDiffusion(**kwargs)) for _ in range(timesteps)])
 
@@ -117,6 +116,5 @@ class FSI_Block(nn.Module):
             u_new = (1. - c) * diffused + c * f
             u_prev = u
             u = u_new
-
         return u
 

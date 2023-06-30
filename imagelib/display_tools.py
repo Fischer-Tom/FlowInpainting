@@ -141,7 +141,7 @@ def load_net(name):
             print("wtf")
 
         net = model(**vars(args))
-    #net.load_state_dict(torch.load(f'/home/fischer/projects/checkpoints/checkpoints/{path}{name}.pt'))
+    net.load_state_dict(torch.load(f'/home/fischer/FlowInpainting/checkpoints/{path}{name}.pt'))
     net.eval()
     net.to(device)
     pytorch_total_params = sum(p.numel() for p in net.parameters())

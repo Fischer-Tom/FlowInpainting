@@ -32,3 +32,10 @@ def write_flow(filename: str, flow:np.array):
 
     flow_color = flow_vis.flow_to_color(flow, convert_to_bgr=False)
     imwrite(filename, flow_color)
+
+def write_flo_file(filename: str, flow):
+    f = open(filename, 'wb')
+    f.write('PIEH'.encode('utf-8'))
+    np.array([flow.shape[1], flow.shape[0]], dtype=np.int32).tofile(f)
+    flow = flow.astype(np.float32)
+    flow.tofile(f)

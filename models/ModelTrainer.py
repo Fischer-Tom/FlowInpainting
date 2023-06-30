@@ -29,7 +29,7 @@ class ModelTrainer:
 
 
     def load_parameters(self, path, **kwargs):
-        self.net.load_state_dict(torch.load(join(path,"model.pt")))
+        self.net.load_state_dict(torch.load(path))
 
     def save_parameters(self, path):
         torch.save(self.net.state_dict(), join(path, f"model{self.train_iters}.pt"))
@@ -73,6 +73,7 @@ class ModelTrainer:
             # Update running loss
             running_loss += batch_risk.item()
             iterations += 1
+            print(running_loss/iterations)
             self.train_iters += 1
             if self.train_iters > self.total_iters:
                 break
@@ -115,10 +116,20 @@ class ModelTrainer:
                 # Update running loss
                 running_loss += batch_risk.item()
                 iterations += 1
-        Flow_vis = flow_vis.flow_to_color(Flow[0].detach().cpu().permute(1,2,0).numpy())
-        Pred_vis = flow_vis.flow_to_color(torch.nan_to_num_(predict_flow[0]).detach().cpu().permute(1, 2, 0).numpy())
-        Masked_vis = flow_vis.flow_to_color(Masked_Flow[0].detach().cpu().permute(1, 2, 0).numpy())
-        I1_vis = inverse_normalize(I1[0].detach().cpu())
-        Mask_vis = torch.cat((Mask[0],Mask[0],Mask[0]),dim=0).detach().cpu()
-        images = torch.stack((I1_vis,Mask_vis,torch.tensor(Flow_vis).permute(2,0,1),torch.tensor(Masked_vis).permute(2,0,1),torch.tensor(Pred_vis).permute(2,0,1)))
+                Flow_vis = flow_vis.flow_to_color(Flow[0].detach().cpu().permute(1,2,0).numpy())
+                Pred_vis = flow_vis.flow_to_color(torch.nan_to_num_(predict_flow[0]).detach().cpu().permute(1, 2, 0).numpy())
+                Masked_vis = flow_vis.flow_to_color(Masked_Flow[0].detach().cpu().permute(1, 2, 0).numpy())
+                I1_vis = inverse_normalize(I1[0].detach().cpu())
+                Mask_vis = torch.cat((Mask[0],Mask[0],Mask[0]),dim=0).detach().cpu()
+                images = torch.stack((I1_vis,Mask_vis,torch.tensor(Flow_vis).permute(2,0,1),torch.tensor(Masked_vis).permute(2,0,1),torch.tensor(Pred_vis).permute(2,0,1)))
+                I1 = images[0, ::]
+                Flow = images[2, ::]
+                Masked = images[3, ::]
+                Pred = images[4, ::]
+                plt.imsave(f"sampleImages/Image_FlowNet_{i}.png", I1.permute(1, 2, 0).numpy())
+                plt.imsave(f"sampleImages/Flow_FlowNet_{i}.png", Flow.permute(1, 2, 0).numpy().astype(np.uint8))
+                plt.imsave(f"sampleImages/Masked_FlowNet_{i}.png",
+                           Masked.permute(1, 2, 0).numpy().astype(np.uint8))
+                plt.imsave(f"sampleImages/Pred_FlowNet_{i}.png", Pred.permute(1, 2, 0).numpy().astype(np.uint8))
+
         return running_loss / iterations , start.elapsed_time(end), images

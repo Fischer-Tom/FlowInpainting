@@ -44,7 +44,10 @@ class FlyingThingsDataset(Dataset):
 
         mask = (torch.FloatTensor(1, h, w).uniform_() > self.density).float()
         m_flow = torch.zeros_like(flow)
+
         indices = torch.cat((mask,mask), dim=0).bool()
+
+
         m_flow[indices] = flow[indices]
         """
         indices_1 = torch.cat((mask, torch.zeros_like(mask)), dim=0).bool()
