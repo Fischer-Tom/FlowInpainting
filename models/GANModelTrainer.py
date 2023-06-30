@@ -7,6 +7,7 @@ import flow_vis
 from imagelib.core import inverse_normalize
 from utils.loss_functions import EPE_Loss
 from tqdm import tqdm
+import numpy as np
 class GANModelTrainer:
 
 
@@ -32,7 +33,7 @@ class GANModelTrainer:
 
 
     def load_parameters(self, path, **kwargs):
-        self.G.load_state_dict(torch.load(join(path,"model.pt")))
+        self.G.load_state_dict(torch.load(path))
 
     def save_parameters(self, path):
         torch.save(self.G.state_dict(), join(path, f"model{self.train_iters}.pt"))
@@ -142,7 +143,7 @@ class GANModelTrainer:
             start = torch.cuda.Event(enable_timing=True)
             end = torch.cuda.Event(enable_timing=True)
             with tqdm(loader, unit="batch") as tepoch:
-                for sample in enumerate(tepoch):
+                for i,sample in enumerate(tepoch):
 
                     tepoch.set_description(f"Iterations {iterations}")
                     sample = [samp.cuda(self.gpu) for samp in sample]
@@ -156,13 +157,31 @@ class GANModelTrainer:
                     # Query Model
                     start.record()
 
-                    predict_flow = self.G(I1, Mask, Masked_Flow, r)
+                    predict_flow = self.G(I1, Mask, Masked_Flow, r) * 100.0
                     batch_risk = EPE_Loss(100.0*predict_flow,100.0*Flow)
                     end.record()
                     torch.cuda.synchronize()
                     # Update running loss
                     running_loss += batch_risk.item()
                     iterations += 1
+                    Flow_vis = flow_vis.flow_to_color(Flow[0].detach().cpu().permute(1, 2, 0).numpy())
+                    Pred_vis = flow_vis.flow_to_color(
+                        torch.nan_to_num_(predict_flow[0]).detach().cpu().permute(1, 2, 0).numpy())
+                    Masked_vis = flow_vis.flow_to_color(Masked_Flow[0].detach().cpu().permute(1, 2, 0).numpy())
+                    I1_vis = inverse_normalize(I1[0].detach().cpu())
+                    Mask_vis = torch.cat((Mask[0], Mask[0], Mask[0]), dim=0).detach().cpu()
+                    images = torch.stack((I1_vis, Mask_vis, torch.tensor(Flow_vis).permute(2, 0, 1),
+                                          torch.tensor(Masked_vis).permute(2, 0, 1),
+                                          torch.tensor(Pred_vis).permute(2, 0, 1)))
+                    I1 = images[0, ::]
+                    Flow = images[2, ::]
+                    Masked = images[3, ::]
+                    Pred = images[4, ::]
+                    plt.imsave(f"sampleImages/Image_WGAIN_{i}.png", I1.permute(1, 2, 0).numpy())
+                    plt.imsave(f"sampleImages/Flow_WGAIN_{i}.png", Flow.permute(1, 2, 0).numpy().astype(np.uint8))
+                    plt.imsave(f"sampleImages/Masked_WGAIN_{i}.png",
+                               Masked.permute(1, 2, 0).numpy().astype(np.uint8))
+                    plt.imsave(f"sampleImages/Pred_WGAIN_{i}.png", Pred.permute(1, 2, 0).numpy().astype(np.uint8))
 
         Flow_vis = flow_vis.flow_to_color(100.0*Flow[0].detach().cpu().permute(1,2,0).numpy())
         Pred_vis = flow_vis.flow_to_color(100.0*predict_flow[0].detach().cpu().permute(1, 2, 0).numpy())

@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 import argparse
 import os
+
+import matplotlib.pyplot as plt
 import torch
 import time
 from torch.utils.tensorboard import SummaryWriter
@@ -13,6 +15,7 @@ from imagen_pytorch import Unet, SRUnet256, ElucidatedImagen
 #from imagen_pytorch import ElucidatedImagen
 from torch.utils.data import Subset
 import yaml
+import numpy as np
 
 parser = argparse.ArgumentParser(description="OFNet")
 
@@ -119,7 +122,7 @@ def main_worker(gpu, ngpus, args):
             unets=(unet1, unet2),
             image_sizes=(96, 384),
             cond_drop_prob=0.0,
-            num_sample_steps=(64, 64),
+            num_sample_steps=(32, 32),
             # number of sample steps - 64 for base unet, 32 for upsampler (just an example, have no clue what the optimal values are)
             sigma_min=0.002,  # min noise level
             sigma_max=(80, 160),  # max noise level, @crowsonkb recommends double the max noise level for upsampler
@@ -199,17 +202,17 @@ def main_worker(gpu, ngpus, args):
             train_loader = torch.utils.data.DataLoader(train_dataset, **params)
             validation_loader = torch.utils.data.DataLoader(val_dataset, **params)
         elif args.dataset == 'FlyingThings':
-            torch.manual_seed(10)
+            torch.manual_seed(51)
             from dataset.FlyingThings import FlyingThingsDataset
             from dataset.Sintel import SintelDataset
 
             from torchvision import transforms
             dataset = FlyingThingsDataset
             sintel_dataset = SintelDataset
-            params = {'batch_size': 16,
+            params = {'batch_size': 6,
                       'shuffle': True,
                       'num_workers': 16,
-                      'pin_memory': True}
+                      'pin_memory': False}
             # Datasets and Loaders
             val_dataset = dataset(args.data_path, args.mask, mode='test', type=ds, presmooth=args.presmooth)
             sintel_val_dataset = sintel_dataset(args.data_path, args.mask, mode='test', type=ds, presmooth=args.presmooth)
@@ -260,16 +263,18 @@ def main_worker(gpu, ngpus, args):
         #test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=args.batch_size,
         #                                          shuffle=True, num_workers=args.dl_workers)
         #checkpoints = yaml.safe_load(open('./checkpoints.yaml', 'r'))
-        #density = 1-args.mask
+        density = 1-args.mask
         #density = 0.05
         #path = checkpoints['models'][str(args.model)][int(round(100*density))]
         #trainer.load_parameters(path)
 
-        test_risk, inf_speed, _ = trainer.validate(validation_loader)
-        print(f"FlyingThings Test Risk is {test_risk:.5f} with inference time {inf_speed:.3f}")
+        #test_risk, inf_speed, _ = trainer.validate(validation_loader)
+        #print(f"FlyingThings Test Risk is {test_risk:.5f} with inference time {inf_speed:.3f}")
 
-        test_risk, inf_speed, _ = trainer.validate(sintel_validation_loader)
+        test_risk, inf_speed, samples = trainer.validate(sintel_validation_loader)
         print(f"Sintel Test Risk is {test_risk:.5f} with inference time {inf_speed:.3f}")
+
+
 
         return
     # trainer.save_parameters(args.save_path + f'checkpoints/{args.model}')
@@ -279,7 +284,7 @@ def main_worker(gpu, ngpus, args):
 
     test_epochs = 1
     while trainer.train_iters < args.train_iter:
-        risk, train_speed, samples = trainer.train(train_loader)
+        risk, train_speed, samples = trainer.train(sintel_validation_loader)
         if args.gpu == 0:
             train_writer.add_scalar('Train Risk', risk, trainer.train_iters)
             print(f'[Training Iterations|Risk | Train time]: {trainer.train_iters} | {risk:.5f} | {train_speed: .3f}')

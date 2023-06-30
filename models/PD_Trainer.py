@@ -13,7 +13,7 @@ class PD_Trainer:
     def __init__(self, net, optimizer, gpu, train_iter, **kwargs):
 
         self.net = net
-        self.trainer = ImagenTrainer(self.net)
+        self.trainer = ImagenTrainer(self.net, verbose=False)
         self.train_iters = 0
         self.total_iters = train_iter
         self.gpu = gpu
@@ -92,21 +92,21 @@ class PD_Trainer:
                 sample = [samp.cuda() for samp in sample]
                 I1, I2 = sample[0:2]
                 Mask = sample[2]
-                Flow = sample[3]
-                Masked_Flow = sample[-1]
+                Flow = sample[3] / 100.0
+                Masked_Flow = sample[-1] / 100.0
                 Condition = I1#torch.cat((I1, Masked_Flow, Mask), dim=1)
                 MaskSave = torch.cat((Mask,Mask,Mask), dim=1)
                 plt.imsave(f'./Mask-{i // 2000}.png',MaskSave[0].cpu().permute(1, 2, 0).numpy())
                 self.trainer.load('./imagen.pt')
                 
-                images = self.trainer.sample(batch_size=1,stop_at_unet_number=2,cond_images=Condition[0:1,::],inpaint_images=Flow[0:1,::],inpaint_masks=Mask[0:1,0,::].bool(), cond_scale=500.)
+                images = self.trainer.sample(stop_at_unet_number=2,cond_images=Condition,inpaint_images=Flow,inpaint_masks=Mask.bool(), cond_scale=500., use_tqdm=True)
                 images = images * 100.0# 1353.2810
                 plt.imsave(f'./sample-{i // 2000}.png',
                            flow_vis.flow_to_color(images[0].cpu().permute(1, 2, 0).numpy()))
                 plt.imsave(f'./flow-{i // 2000}.png', flow_vis.flow_to_color(Flow[0].cpu().permute(1, 2, 0).numpy()))
                 plt.imsave(f'./image-{i // 2000}.png',inverse_normalize(I1[0].cpu()).permute(1, 2, 0).numpy())
                 write_flo_file(f'./flow.flo', images[0].cpu().permute(1,2,0).numpy())
-                loss = torch.norm(100*Flow[0,:,:,:] - images, 2, 1).mean()
+                loss = torch.norm(100*Flow- images, 2, 1).mean()
                 print(f"Loss: {loss}")
                 exit()
 
@@ -134,29 +134,30 @@ class PD_Trainer:
         running_loss = 0.0
         iterations = 0
         I1, Mask, Flow, predict_flow = None, None, None, None
-        self.trainer.load('/home/fischer/PD_Samples/imagen.pt')
+        self.trainer.load('./imagen.pt')
 
-        with torch.no_grad():
-            start = torch.cuda.Event(enable_timing=True)
-            end = torch.cuda.Event(enable_timing=True)
-            for i, sample in enumerate(loader):
-                sample = [samp.cuda() for samp in sample]
-                I1, I2 = sample[0:2]
-                Mask = sample[2]
-                Flow = sample[3]
-                Masked_Flow = sample[-1]
-                Condition = I1  # torch.cat((I1, Masked_Flow, Mask), dim=1)
+        start = torch.cuda.Event(enable_timing=True)
+        end = torch.cuda.Event(enable_timing=True)
+        for i, sample in enumerate(loader):
+            sample = [samp.cuda() for samp in sample]
+            I1, I2 = sample[0:2]
+            Mask = sample[2]
+            Flow = sample[3] / 100.0
+            Masked_Flow = sample[-1] / 100.0
+            Condition = I1  # torch.cat((I1, Masked_Flow, Mask), dim=1)
+        # Query Model
 
-                predict_flow = self.trainer.sample(batch_size=Condition.shape[0], cond_images=Condition,
-                                             inpaint_images=Masked_Flow, inpaint_masks=Mask.bool(), cond_scale=500.)                # Query Model
-
-                start.record()
-                batch_risk = EPE_Loss(100.0 * predict_flow, 100.0 * Flow)
-                end.record()
-                torch.cuda.synchronize()
-                # Update running loss
-                running_loss += batch_risk.item()
-                iterations += 1
+            start.record()
+            predict_flow = self.trainer.sample(stop_at_unet_number=2,
+                                               cond_images=Condition,inpaint_images=Flow,inpaint_masks=Mask.bool(), cond_scale=500., use_tqdm=False)
+            predict_flow = 100.0 * predict_flow
+            batch_risk = torch.norm(100*Flow- predict_flow, 2, 1).mean()
+            end.record()
+            torch.cuda.synchronize()
+            # Update running loss
+            running_loss += batch_risk.item()
+            iterations += 1
+            print(running_loss/iterations)
         Flow_vis = flow_vis.flow_to_color(Flow[0].detach().cpu().permute(1,2,0).numpy())
         Pred_vis = flow_vis.flow_to_color(torch.nan_to_num_(predict_flow[0]).detach().cpu().permute(1, 2, 0).numpy())
         Masked_vis = flow_vis.flow_to_color(Masked_Flow[0].detach().cpu().permute(1, 2, 0).numpy())
