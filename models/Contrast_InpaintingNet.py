@@ -77,11 +77,14 @@ class InpaintingNetwork(nn.Module):
     def get_DiffusionTensor(self, i, i_f):
 
         ixx, iyy, ixy = self.get_structure_tensor(i)
-        v11, v12, mu1 = self.get_eigenvectors(ixx, iyy, ixy)
+        _, _, mu1, mu2 = self.get_eigenvectors(ixx, iyy, ixy)
 
 
-        mu1 = self.g(i_f[:, 0:1, :, :])
-        mu2 = self.g(i_f[:, 1:2, :, :])
+        mu1 = self.g(mu1)
+        mu2 = self.g(mu2)
+        V = F.normalize(i_f[:, 0:2, :, :], dim=1, p=2.)
+        v11 = V[:,0:1,:,:]
+        v12 = V[:,1:2,:,:]
 
         a = v11 * v11 * mu1 + v12 * v12 * mu2
         c = mu1 + mu2 - a
@@ -163,7 +166,7 @@ class InpaintingNetwork(nn.Module):
         v11[high_norm] = v11[high_norm] / norm[high_norm]
         v12[high_norm] = v12[high_norm] / norm[high_norm]
 
-        return v11, v12, mu1
+        return v11, v12, mu1, mu2
     def constrain_weight(self):
         if self.disc == 'DB':
             with torch.no_grad():
