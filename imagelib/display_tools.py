@@ -87,11 +87,11 @@ def load_net(name):
             dim=128,
             dim_mults=(1, 2, 4, 8),
             num_resnet_blocks=3,
-            layer_attns=(False, False, True, True),
+            layer_attns=(True, True, True, True),
             layer_cross_attns=(False, False, False, False),
             channels=2,
             channels_out=2,
-            cond_images_channels=6
+            cond_images_channels=3
         )
 
         unet2 = SRUnet256(
@@ -100,16 +100,16 @@ def load_net(name):
             num_resnet_blocks=(2, 4, 8, 8),
             layer_attns=(False, False, True, True),
             layer_cross_attns=(False, False, False, False),
-            cond_images_channels=6
+            cond_images_channels=3
         )
 
         # imagen, which contains the unets above (base unet and super resoluting ones)
 
         net = ElucidatedImagen(
             unets=(unet1, unet2),
-            image_sizes=(64, 384),
-            cond_drop_prob=0.1,
-            num_sample_steps=(64, 32),
+            image_sizes=(96, 384),
+            cond_drop_prob=0.0,
+            num_sample_steps=(32, 32),
             # number of sample steps - 64 for base unet, 32 for upsampler (just an example, have no clue what the optimal values are)
             sigma_min=0.002,  # min noise level
             sigma_max=(80, 160),  # max noise level, @crowsonkb recommends double the max noise level for upsampler

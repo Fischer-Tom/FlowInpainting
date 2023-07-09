@@ -11,7 +11,7 @@ import os
 from models.ModelTrainer import ModelTrainer
 from models.GANModelTrainer import GANModelTrainer
 from models.PD_Trainer import PD_Trainer
-from imagen_pytorch import Unet, SRUnet256, ElucidatedImagen
+from imagen_pytorch import Unet,BaseUnet64, SRUnet256, SRUnet1024,ElucidatedImagen,Imagen
 #from imagen_pytorch import ElucidatedImagen
 from torch.utils.data import Subset
 import yaml
@@ -96,59 +96,59 @@ def main_worker(gpu, ngpus, args):
     net = None
     ds = 'IP'
     if args.model == 'PD_Inpainting':
-        unet1 = Unet(
+        unet1 = BaseUnet64(
             dim=128,
-            dim_mults=(1, 2, 4, 8),
-            num_resnet_blocks=3,
-            layer_attns=(True, True, True, True),
-            layer_cross_attns=(False, False, False, False),
             channels=2,
             channels_out=2,
-            cond_images_channels=3
+            cond_images_channels=3,
+            memory_efficient=True
         )
 
         unet2 = SRUnet256(
-            dim=128,
-            dim_mults=(1, 2, 4, 8),
-            num_resnet_blocks=(2, 4, 8, 8),
-            layer_attns=(False, False, True, True),
-            layer_cross_attns=(False, False, False, False),
-            cond_images_channels=3
+            cond_images_channels=3,
+            memory_efficient=True
+        )
+        unet3 = SRUnet1024(
+            cond_images_channels=3,
+            memory_efficient=True
         )
 
         # imagen, which contains the unets above (base unet and super resoluting ones)
 
         net = ElucidatedImagen(
-            unets=(unet1, unet2),
-            image_sizes=(96, 384),
+            unets=(unet1, unet2, unet3),
+            image_sizes=(96,192,384),
+            random_crop_sizes=(None,96,128),
             cond_drop_prob=0.0,
-            num_sample_steps=(32, 32),
+            num_sample_steps=(64,64,64),
             # number of sample steps - 64 for base unet, 32 for upsampler (just an example, have no clue what the optimal values are)
             sigma_min=0.002,  # min noise level
-            sigma_max=(80, 160),  # max noise level, @crowsonkb recommends double the max noise level for upsampler
+            sigma_max=(80, 160, 320),  # max noise level, @crowsonkb recommends double the max noise level for upsampler
             sigma_data=0.5,  # standard deviation of data distribution
             rho=7,  # controls the sampling schedule
             P_mean=-1.2,  # mean of log-normal distribution from which noise is drawn for training
             P_std=1.2,  # standard deviation of log-normal distribution from which noise is drawn for training
-            S_churn=80,  # parameters for stochastic sampling - depends on dataset, Table 5 in apper
+            S_churn=40,  # parameters for stochastic sampling - depends on dataset, Table 5 in apper
             S_tmin=0.05,
             S_tmax=50,
             S_noise=1.003,
             condition_on_text=False,
             channels=2,
-            auto_normalize_img=False
+            auto_normalize_img=False,
         )
         """
         net = Imagen(
-            unets=(unet1, unet2),
-            image_sizes=(64, 384),
-            cond_drop_prob=0.1,
+            unets=(unet1, unet2, unet3),
+            image_sizes=(96, 192, 384),
+            cond_drop_prob=0.05,
             timesteps=1000,
             condition_on_text=False,
             channels=2,
             auto_normalize_img=False
         )
         """
+
+
     else:
         try:
             if "Res_InpaintingFlowNetNet" in args.model:
@@ -209,10 +209,10 @@ def main_worker(gpu, ngpus, args):
             from torchvision import transforms
             dataset = FlyingThingsDataset
             sintel_dataset = SintelDataset
-            params = {'batch_size': 6,
+            params = {'batch_size': 32,
                       'shuffle': True,
                       'num_workers': 16,
-                      'pin_memory': False}
+                    }
             # Datasets and Loaders
             val_dataset = dataset(args.data_path, args.mask, mode='test', type=ds, presmooth=args.presmooth)
             sintel_val_dataset = sintel_dataset(args.data_path, args.mask, mode='test', type=ds, presmooth=args.presmooth)
@@ -263,7 +263,7 @@ def main_worker(gpu, ngpus, args):
         #test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=args.batch_size,
         #                                          shuffle=True, num_workers=args.dl_workers)
         #checkpoints = yaml.safe_load(open('./checkpoints.yaml', 'r'))
-        density = 1-args.mask
+        #density = 1-args.mask
         #density = 0.05
         #path = checkpoints['models'][str(args.model)][int(round(100*density))]
         #trainer.load_parameters(path)
@@ -271,7 +271,7 @@ def main_worker(gpu, ngpus, args):
         #test_risk, inf_speed, _ = trainer.validate(validation_loader)
         #print(f"FlyingThings Test Risk is {test_risk:.5f} with inference time {inf_speed:.3f}")
 
-        test_risk, inf_speed, samples = trainer.validate(sintel_validation_loader)
+        test_risk, inf_speed, samples = trainer.validate(train_loader)
         print(f"Sintel Test Risk is {test_risk:.5f} with inference time {inf_speed:.3f}")
 
 
