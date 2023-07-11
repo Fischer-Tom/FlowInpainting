@@ -95,7 +95,6 @@ def main_worker(gpu, ngpus, args):
     # Load Model here
     net = None
     ds = 'IP'
-    a = torch.load('/home/fischer/FlowInpainting/eluimagen_biggerData.pt')
 
     if args.model == 'PD_Inpainting':
         """
