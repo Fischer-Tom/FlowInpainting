@@ -290,10 +290,10 @@ def main_worker(gpu, ngpus, args):
         #trainer.load_parameters(path)
 
         test_risk, inf_speed, _ = trainer.validate(validation_loader)
-        print(f"FlyingThings Test Risk is {test_risk:.5f} with inference time {inf_speed:.3f}")
+        print(f"Mask Density: {args.mask}, FlyingThings Test Risk is {test_risk:.5f} with inference time {inf_speed:.3f}")
 
         test_risk, inf_speed, samples = trainer.validate(sintel_validation_loader)
-        print(f"Sintel Test Risk is {test_risk:.5f} with inference time {inf_speed:.3f}")
+        print(f"Mask Density: {args.mask}, Sintel Test Risk is {test_risk:.5f} with inference time {inf_speed:.3f}")
 
 
 
