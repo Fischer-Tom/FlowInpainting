@@ -95,40 +95,60 @@ def main_worker(gpu, ngpus, args):
     # Load Model here
     net = None
     ds = 'IP'
+    a = torch.load('/home/fischer/FlowInpainting/eluimagen_biggerData.pt')
+
     if args.model == 'PD_Inpainting':
-        unet1 = BaseUnet64(
+        """
+        unet1 = Unet(
             dim=128,
+            dim_mults=(1, 2, 4, 8),
+            num_resnet_blocks=3,
+            layer_attns=(True, True, True, True),
+            layer_cross_attns=(False, False, False, False),
+            channels=2,
+            channels_out=2,
+            cond_images_channels=3
+        )
+
+        unet2 = SRUnet256(
+            dim=128,
+            dim_mults=(1, 2, 4, 8),
+            num_resnet_blocks=(2, 4, 8, 8),
+            layer_attns=(False, False, True, True),
+            layer_cross_attns=(False, False, False, False),
+            cond_images_channels=3
+        )
+        """
+
+
+        unet1 = Unet(
+            dim=128,
+            dim_mults=(1, 2, 4, 8),
+            num_resnet_blocks=3,
             channels=2,
             channels_out=2,
             cond_images_channels=3,
-            memory_efficient=True
+            memory_efficient = True
         )
 
         unet2 = SRUnet256(
             cond_images_channels=3,
             memory_efficient=True
         )
-        unet3 = SRUnet1024(
-            cond_images_channels=3,
-            memory_efficient=True
-        )
-
-        # imagen, which contains the unets above (base unet and super resoluting ones)
 
         net = ElucidatedImagen(
-            unets=(unet1, unet2, unet3),
-            image_sizes=(96,192,384),
-            random_crop_sizes=(None,96,128),
+            unets=(unet1, unet2),
+            image_sizes=(96,384),
+            random_crop_sizes=(None,None),
             cond_drop_prob=0.0,
-            num_sample_steps=(64,64,64),
-            # number of sample steps - 64 for base unet, 32 for upsampler (just an example, have no clue what the optimal values are)
-            sigma_min=0.002,  # min noise level
-            sigma_max=(80, 160, 320),  # max noise level, @crowsonkb recommends double the max noise level for upsampler
-            sigma_data=0.5,  # standard deviation of data distribution
-            rho=7,  # controls the sampling schedule
-            P_mean=-1.2,  # mean of log-normal distribution from which noise is drawn for training
-            P_std=1.2,  # standard deviation of log-normal distribution from which noise is drawn for training
-            S_churn=40,  # parameters for stochastic sampling - depends on dataset, Table 5 in apper
+            num_sample_steps=(32,32),
+            sigma_min=0.002,
+            sigma_max=(120, 480),
+            sigma_data=1,
+            rho=7,
+            P_mean=-1.2,
+            P_std=1.2,
+            S_churn=80,
             S_tmin=0.05,
             S_tmax=50,
             S_noise=1.003,
@@ -211,7 +231,8 @@ def main_worker(gpu, ngpus, args):
             sintel_dataset = SintelDataset
             params = {'batch_size': 32,
                       'shuffle': True,
-                      'num_workers': 16,
+                      'num_workers': 8,
+                      'pin_memory':True
                     }
             # Datasets and Loaders
             val_dataset = dataset(args.data_path, args.mask, mode='test', type=ds, presmooth=args.presmooth)
@@ -268,10 +289,10 @@ def main_worker(gpu, ngpus, args):
         #path = checkpoints['models'][str(args.model)][int(round(100*density))]
         #trainer.load_parameters(path)
 
-        #test_risk, inf_speed, _ = trainer.validate(validation_loader)
-        #print(f"FlyingThings Test Risk is {test_risk:.5f} with inference time {inf_speed:.3f}")
+        test_risk, inf_speed, _ = trainer.validate(validation_loader)
+        print(f"FlyingThings Test Risk is {test_risk:.5f} with inference time {inf_speed:.3f}")
 
-        test_risk, inf_speed, samples = trainer.validate(train_loader)
+        test_risk, inf_speed, samples = trainer.validate(sintel_validation_loader)
         print(f"Sintel Test Risk is {test_risk:.5f} with inference time {inf_speed:.3f}")
 
 
@@ -284,7 +305,7 @@ def main_worker(gpu, ngpus, args):
 
     test_epochs = 1
     while trainer.train_iters < args.train_iter:
-        risk, train_speed, samples = trainer.train(sintel_validation_loader)
+        risk, train_speed, samples = trainer.train(train_loader)
         if args.gpu == 0:
             train_writer.add_scalar('Train Risk', risk, trainer.train_iters)
             print(f'[Training Iterations|Risk | Train time]: {trainer.train_iters} | {risk:.5f} | {train_speed: .3f}')
