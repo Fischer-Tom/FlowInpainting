@@ -116,14 +116,16 @@ class PD_Trainer:
                 print(f"Loss: {loss}")
                 exit()
                 """
-                loss = self.trainer(Flow, unet_number=1,cond_images=Condition, max_batch_size=6)
-                self.trainer.update(unet_number=1)
-                loss = self.trainer(Flow, unet_number=2,cond_images=Condition, max_batch_size=6)
-                self.trainer.update(unet_number=2)
-                loss = self.trainer(Flow, unet_number=2,cond_images=Condition, max_batch_size=6)
-                self.trainer.update(unet_number=2)
-                loss = self.trainer(Flow, unet_number=2,cond_images=Condition, max_batch_size=6)
-                self.trainer.update(unet_number=2)
+                if toTrain == 2:
+                    loss = self.trainer(Flow, unet_number=toTrain,cond_images=Condition, max_batch_size=6)
+                    self.trainer.update(unet_number=toTrain)
+                    loss = self.trainer(Flow, unet_number=toTrain,cond_images=Condition, max_batch_size=6)
+                    self.trainer.update(unet_number=toTrain)
+                    loss = self.trainer(Flow, unet_number=toTrain,cond_images=Condition, max_batch_size=6)
+                    self.trainer.update(unet_number=toTrain)
+                else:
+                    loss = self.trainer(Flow, unet_number=toTrain,cond_images=Condition, max_batch_size=6)
+                    self.trainer.update(unet_number=toTrain)
                 #print(loss)
 
                 #loss = self.net(Flow,cond_images=Condition, unet_number=2)
@@ -131,13 +133,13 @@ class PD_Trainer:
                 #loss.backward()
                 #self.trainer.update(unet_number=1)
             if j % 5 == 4:
-                images = self.trainer.sample(batch_size=1,stop_at_unet_number=toTrain,cond_images=Condition[0:1,::],inpaint_resample_times=5,inpaint_images=Flow[0:1,::],inpaint_masks=Mask[0:1,::].bool(), cond_scale=3.)  # returns List[Image]
+                images = self.trainer.sample(batch_size=1,stop_at_unet_number=toTrain,cond_images=Condition[0:1,::],inpaint_resample_times=1,inpaint_images=Flow[0:1,::],inpaint_masks=Mask[0:1,:].bool(), cond_scale=5.)  # returns List[Image]
                 epe = Scaled_EPE_Loss_mean(images*batchMax,Flow*batchMax).item()
                 images = images * batchMax#1353.2810
                 iterations += 1
                 #images[0].save(f'./sample-{i // 500}.png')
-                print(f'Iter: {j}, loss: {loss}, EPE of scale 2: {epe}')
-                plt.imsave(f'/home/fischer/PD_Train/sample-50.png',flow_vis.flow_to_color(images[0].cpu().permute(1, 2, 0).numpy()))
+                print(f'Iter: {j}, loss: {loss}, EPE of scale {toTrain}: {epe}')
+                plt.imsave(f'/home/fischer/PD_Train/sample-{toTrain}_50.png',flow_vis.flow_to_color(images[0].cpu().permute(1, 2, 0).numpy()))
                 self.trainer.save('/home/fischer/PD_Train/imagen_50.pt')
                 self.trainer = ImagenTrainer(self.net, verbose=False)
                 self.trainer.load('/home/fischer/PD_Train/imagen_50.pt')
